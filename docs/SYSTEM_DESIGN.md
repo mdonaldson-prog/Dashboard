@@ -535,7 +535,7 @@ Partitioned by `grain`, with BRIN on `period_start`.
 | Table | Key columns |
 |---|---|
 | `ops.velocity_settings` | location_id (nullable = default) PK, lookback_days (default 90), metric (`transactions, units`), fast_cutoff_pct (default 80), medium_cutoff_pct (default 95), demote_after_runs (default 2) |
-| `ops.count_policies` | id, location_id (nullable = default), velocity_class (`fast, medium, slow, dormant`), counts_per_year, is_active |
+| `ops.count_policies` | id, location_id (nullable = default), velocity_class (`fast, medium, slow, dormant`), interval_weeks (default 1 / 2 / 4 / 52), placement_window_days (default 2 / 3 / 5 / 10), is_active |
 | `ops.velocity_classifications` | product_id, location_id, classified_on (PK triple), transactions, units_moved, rank, cumulative_pct, velocity_class, previous_class, is_override |
 | `ops.velocity_overrides` | product_id, location_id (PK pair), forced_class, reason, set_by, set_at, expires_at |
 | `ops.count_calendars` | id, location_id, working_days int[] (ISO DOW), daily_capacity_lines, blackout_dates date[] |
@@ -649,12 +649,14 @@ The dashboard **plans** cycle counts; it doesn't run them. Counting, entering re
    - **Units moved:** available as an alternative setting.
 2. Rank SKUs within each location from fastest to slowest and assign classes by cumulative share of total transactions (cutoffs are configurable):
 
-   | Class | Default rule | Default counts per year |
-   |---|---|---|
-   | Fast | SKUs making up the top 80% of transactions | 12 (monthly) |
-   | Medium | The next 15% | 4 (quarterly) |
-   | Slow | Remaining SKUs with any movement | 2 (twice a year) |
-   | Dormant | No movement in the window, but stock on hand | 1 (yearly) |
+   | Class | Default rule | Count cadence | Placement window |
+   |---|---|---|---|
+   | Fast | SKUs making up the top 80% of transactions | **Weekly** (every week) | ±2 working days, never leaves its week |
+   | Medium | The next 15% | **Biweekly** (every 2 weeks) | ±3 working days |
+   | Slow | Remaining SKUs with any movement | **Monthly** (every 4 weeks) | ±5 working days |
+   | Dormant | No movement in the window, but stock on hand | Yearly | ±10 working days |
+
+   Cadences are stored in weeks so they line up with the weekly schedule refresh. "Monthly" therefore means every 4 weeks (13 counts a year).
 
    SKUs with no movement and nothing on hand are left off the schedule.
 3. **Overrides:** A planner can pin a SKU to a class (for example, a slow-moving item that is prone to theft), optionally with an expiry date.
@@ -662,12 +664,13 @@ The dashboard **plans** cycle counts; it doesn't run them. Counting, entering re
 
 **Schedule generation**
 
-1. **Inputs:** location, period (default: the next 13 weeks), counts per year for each class, the location's working days, daily capacity (SKU-locations per day), and blackout dates (month-end, physical inventory, etc.).
-2. **Due dates:** Each SKU-location's interval is 365 ÷ counts per year, so its next due date is its last count date plus that interval. The last count date comes from inFlow stock counts if that sync is available, otherwise from the previous schedule. New SKUs are due immediately.
-3. **Placement:** Each count goes on the working day nearest its due date. A greedy fill then levels the load so no day exceeds capacity; when a day is full, the count moves to the nearest day with room, with fast movers placed first so they stay closest to their due dates. Counts in the same zone or aisle are grouped onto the same day when that doesn't move anything more than a few days from its due date.
-4. **Walk order:** Each day's list is sorted by sublocation (bin) path so it can be counted in one pass.
-5. **Review and publish:** The inventory lead previews the calendar and load chart, drags lines between days or locks them, then publishes.
-6. **Rolling refresh:** Each week, after reclassification, the next 13 weeks are regenerated. The current week and any locked lines stay fixed; everything else is re-planned for class changes, new SKUs, and (if available) counts already completed in inFlow.
+1. **Inputs:** location, period (default: the next 13 weeks), cadence for each class, the location's working days, daily capacity (SKU-locations per day), and blackout dates (month-end, physical inventory, etc.).
+2. **Feasibility check:** Before placing anything, compute the required load: for each class, the number of SKU-locations ÷ the working days in its cadence, summed across classes. Weekly counting of fast movers is heavy (for example, 1,000 fast SKUs across 5 working days is 200 counts a day before any other class). If the required load exceeds daily capacity, the preview says by how much and offers the fixes: raise capacity, tighten the Fast cutoff, or lengthen a cadence. A schedule that can't meet its cadences can only be published with an explicit acknowledgment, and the shortfall is shown on the calendar.
+3. **Due dates:** Each SKU-location's next due date is its last count date plus its cadence. The last count date comes from inFlow stock counts if that sync is available, otherwise from the previous schedule. New SKUs are due immediately.
+4. **Placement:** Each count goes on the working day nearest its due date. A greedy fill then levels the load so no day exceeds capacity; when a day is full, the count moves to the nearest day with room inside its class's placement window. Fast movers are placed first so they keep their weekly slot. Counts in the same zone or aisle are grouped onto the same day when that stays inside every count's window. A count that can't fit inside its window is flagged as at risk, not silently pushed later.
+5. **Walk order:** Each day's list is sorted by sublocation (bin) path so it can be counted in one pass.
+6. **Review and publish:** The inventory lead previews the calendar and load chart, drags lines between days or locks them, then publishes.
+7. **Rolling refresh:** Each week, after reclassification, the next 13 weeks are regenerated. The current week and any locked lines stay fixed; everything else is re-planned for class changes, new SKUs, and (if available) counts already completed in inFlow.
 
 **Outputs**
 
@@ -761,7 +764,7 @@ All routes are prefixed `/api/v1`. Responses include `dataAsOf`. Lists support c
 | | `PATCH /replenishment/recommendations/{id}` | Mark reviewed/dismissed |
 | | `POST /replenishment/export` | CSV/XLSX for inFlow PO import |
 | | `POST /forecasts/runs` / `GET /forecasts/runs/{id}` | Trigger a run and track progress |
-| Cycle counts | `GET/PUT /cycle-counts/policies` | Counts per year for each velocity class, velocity cutoffs, capacity, blackout dates |
+| Cycle counts | `GET/PUT /cycle-counts/policies` | Cadence and placement window for each velocity class, velocity cutoffs, capacity, blackout dates |
 | | `GET /cycle-counts/velocity` | Velocity class per SKU-location, with the movement figures behind it |
 | | `PUT /cycle-counts/velocity/overrides` | Pin a SKU to a class |
 | | `POST /cycle-counts/schedules/preview` | Generate a draft (no persistence) |
@@ -896,7 +899,7 @@ All routes are prefixed `/api/v1`. Responses include `dataAsOf`. Lists support c
 
 ScheduleBuilderWizard  (/cycle-counts/schedules/new)
 ├── <ScopeStep>                       location, period, zones
-├── <PolicyStep>                      counts per year per velocity class, capacity, blackout dates (prefilled)
+├── <PolicyStep>                      cadence per velocity class, capacity, blackout dates (prefilled); live required-vs-available load
 ├── <PreviewStep>
 │   ├── <LoadBalanceChart>            counts/day vs capacity
 │   └── <DraggableScheduleGrid>       move or lock lines
@@ -1122,7 +1125,7 @@ Row-level scoping by `user_location_access` is applied in the query layer for ev
 
 | Level | Approach |
 |---|---|
-| Unit | KPI calculators, scoring normalization, velocity and ABC classifiers, schedule generator (property-based tests: capacity never exceeded, counts-per-year targets met, blackout dates respected), replenishment math |
+| Unit | KPI calculators, scoring normalization, velocity and ABC classifiers, schedule generator (property-based tests: capacity never exceeded, every count inside its placement window or flagged, blackout dates respected), replenishment math |
 | Contract | Recorded inFlow API fixtures (sanitized) validate normalizers; Zod contracts shared across web/API; a nightly canary against the live API in staging detects schema drift |
 | Integration | Testcontainers Postgres + Redis; full sync → normalize → KPI pipeline on a fixture company |
 | Data quality | Automated checks after each sync: row counts vs inFlow, FK orphans, negative quantities, PO lines without promised date, unmapped carriers. Results go to the admin page. |
@@ -1168,7 +1171,7 @@ gantt
 1. **inFlow API spike.** With a test company and API key, confirm the authentication, versioning header, pagination, modified-since filtering, `include` expansions, rate limits, webhook availability, and whether completed stock counts can be read (for schedule adherence). Document the actual entity coverage against §6.2 and update assumptions A2–A4.
 2. **Data audit.** Pull a sample of POs, SOs, and MOs. Measure how often promised dates, carrier fields, tracking numbers, and costs are populated. Produce a **data readiness report** (for example, "38% of POs lack a vendor-promised date"), which sets expectations and process changes.
 3. **KPI definition workshop** with executives. Finalize the catalog (§8.1), formulas, owners, targets, fiscal calendar, and timezone. Sign off on the **KPI Dictionary** (`docs/kpi-dictionary.md`).
-4. **Scorecard and cycle-count policy workshop.** Set scorecard weights and grace days, velocity class cutoffs and counts per year, and daily counting capacity and blackout dates per location.
+4. **Scorecard and cycle-count policy workshop.** Set scorecard weights and grace days, velocity class cutoffs and cadences, and daily counting capacity and blackout dates per location.
 5. **Choose a tracking aggregator** (EasyPost, ShipEngine, or AfterShip) based on carrier coverage and cost.
 6. **Repo and platform skeleton.** Monorepo, lint/format/typecheck, CI pipeline, Terraform for dev/staging (VPC, RDS, Redis, ECS, S3, Secrets Manager), and a hello-world deploy of web + api + worker.
 7. **SSO integration** with the corporate IdP. Base RBAC roles.
@@ -1242,7 +1245,7 @@ gantt
 
 **Objective:** A velocity-based count schedule the warehouse team can follow, while counting itself stays in inFlow.
 
-1. Add migrations for the `ops` velocity and count schedule tables. Seed velocity cutoffs, counts per year, and calendars from the Phase 0 decisions.
+1. Add migrations for the `ops` velocity and count schedule tables. Seed velocity cutoffs, cadences, and calendars from the Phase 0 decisions.
 2. Build the weekly **velocity classification** job (transactions or units, cumulative-share cutoffs, the stability rule) and SKU overrides.
 3. Build the **schedule generator** (§8.3) with property-based tests, the preview API, and the weekly rolling refresh.
 4. Frontend: count calendar, **Schedule Builder wizard** with drag-and-drop preview, and the velocity page.
@@ -1251,7 +1254,7 @@ gantt
 7. Publish the first schedule at a **pilot location**. The pilot runs into Phase 6, comparing planned daily load with what the team actually finishes, and capacity is tuned from that.
 
 **Deliverables:** A published 13-week count schedule for the pilot location; daily count sheets.
-**Exit criteria:** Each velocity class is scheduled within ±5% of its counts-per-year target; no day exceeds capacity; the inventory lead signs off on the first published schedule.
+**Exit criteria:** Every fast SKU is scheduled once per week, every medium SKU once per two weeks, and every slow SKU once per four weeks (or the shortfall is flagged and acknowledged); no day exceeds capacity; the inventory lead signs off on the first published schedule.
 
 ---
 
