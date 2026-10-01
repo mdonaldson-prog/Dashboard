@@ -42,7 +42,7 @@ Five capability areas:
 |---|---|
 | **KPIs** | Curated, governed metric catalog (inventory turns, OTIF, fill rate, gross margin, MO schedule adherence, etc.) with targets, trends, and drill-down to the source documents. |
 | **Forecasting** | SKU × location demand forecasts with confidence bands, accuracy tracking, planner overrides, and reorder-point / order-quantity recommendations. |
-| **Cycle Count Schedules** | ABC-driven count calendar, mobile count entry, variance review and approval, inventory record accuracy (IRA) tracking, and optional posting of adjustments back to inFlow. |
+| **Cycle Count Schedules** | A count calendar generated from product velocity (how often each SKU moves), so fast movers are counted most often. It produces daily count lists and printable count sheets. The counts themselves are done and recorded in inFlow; the dashboard only plans them. |
 | **Vendor Scorecards** | Weighted, period-based scores for on-time, in-full, lead-time reliability, price variance, and quality, with evidence drill-down and exportable reports. |
 | **Carrier Scorecards** | On-time delivery, transit-time reliability, cost-to-serve, damage/claims, and tracking compliance per carrier and service level. |
 
@@ -56,9 +56,9 @@ The architecture is a **modular monolith** (one deployable API + background work
 
 - **G1 — Single source of executive truth.** Every KPI has one written definition, one calculation, and an owner.
 - **G2 — Fresh enough to act on.** Operational data no more than 15–30 minutes stale during business hours; daily KPIs finalized by 06:00 local.
-- **G3 — Drill from number to document.** Any KPI value can be traced to the POs, SOs, MOs, shipments, or counts that produced it.
+- **G3 — Drill from number to document.** Any KPI value can be traced to the POs, SOs, MOs, or shipments that produced it.
 - **G4 — Forward-looking.** Forecasts and stockout-risk projections, not just historical reporting.
-- **G5 — Close the loop.** Cycle-count results and approved adjustments can flow back into inFlow (gated behind approval and a feature flag).
+- **G5 — Plan the counting.** A velocity-based cycle count schedule that spreads counts evenly within each location's counting capacity.
 - **G6 — Fast.** Dashboard pages render in under 2 seconds at p95.
 
 ### 2.2 Non-Goals (v1)
@@ -66,14 +66,16 @@ The architecture is a **modular monolith** (one deployable API + background work
 - Replacing inFlow transactions (creating POs, SOs, or MOs from the dashboard). Recommendations are exported or deep-linked into inFlow; they are not executed.
 - General-purpose BI / ad-hoc report building. We'll offer CSV/Excel export and can expose the analytics schema to Power BI or Metabase later.
 - Full financial accounting (GL, AP/AR). Cost and margin figures come from inFlow costing.
-- Native mobile apps. The counter experience is a responsive PWA.
+- Running cycle counts. Count entry, variance review, and inventory adjustments stay in inFlow. The dashboard only produces the schedule.
+- Writing anything back to inFlow. The integration is read-only.
+- Native mobile apps. The web app is responsive for tablet and phone viewing.
 
 ### 2.3 Assumptions (verify in Phase 0)
 
 | # | Assumption | Impact if wrong |
 |---|---|---|
 | A1 | The company is on an inFlow Cloud plan with API access enabled and an API key can be issued. | Blocker; no integration path. |
-| A2 | The inFlow API exposes products, stock levels by location/sublocation, vendors, customers, purchase orders (with receipts), sales orders (with shipping/fulfillment data), manufacturing orders/BOMs, stock adjustments/transfers, and stock counts. | Gaps need alternate sources (CSV export, manual entry). |
+| A2 | The inFlow API exposes products, stock levels by location/sublocation, vendors, customers, purchase orders (with receipts), sales orders (with shipping/fulfillment data), manufacturing orders/BOMs, stock adjustments/transfers, and (optionally) completed stock counts. | Gaps need alternate sources (CSV export, manual entry). |
 | A3 | Entities can be fetched incrementally (a modified-since filter or equivalent sort-and-cursor). | Must fall back to full re-pulls, which raises rate-limit pressure. |
 | A4 | inFlow does **not** record carrier *delivery* dates or vendor quality defects. | Carrier delivery data comes from a tracking aggregator; quality events are entered in the dashboard. |
 | A5 | At least 12–24 months of sales history exists in inFlow. | Forecasts for short-history SKUs fall back to simple methods and are flagged low-confidence. |
@@ -92,7 +94,7 @@ flowchart LR
         EX[Executives]
         OPS[Ops / Inventory Managers]
         PUR[Purchasing / Planners]
-        CNT[Warehouse Counters]
+        INV[Inventory Leads]
         ADM[Admins]
     end
 
@@ -103,8 +105,8 @@ flowchart LR
     IDP[(Identity Provider<br/>Entra ID / Okta / Google)]
     MAIL[(Email / Teams / Slack)]
 
-    EX & OPS & PUR & CNT & ADM --> DASH
-    DASH -- read: master data, orders, stock<br/>write: stock adjustments (gated) --> INF
+    EX & OPS & PUR & INV & ADM --> DASH
+    DASH -- read-only: master data, orders, stock --> INF
     INF -. webhooks, if available .-> DASH
     DASH -- tracking lookups --> TRK
     TRK -. tracking webhooks .-> DASH
@@ -117,12 +119,12 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph Client
-        WEB[Web App - Next.js / React<br/>Desktop dashboards + Counter PWA]
+        WEB[Web App - Next.js / React<br/>Responsive dashboards]
     end
 
     subgraph Platform
         API[API Service - NestJS<br/>REST, auth, RBAC, query layer]
-        WRK[Job Workers - Node / BullMQ<br/>sync, transform, KPI, scorecards,<br/>cycle-count gen, alerts, exports]
+        WRK[Job Workers - Node / BullMQ<br/>sync, transform, KPI, scorecards,<br/>count scheduling, alerts, exports]
         FC[Forecast Worker - Python<br/>statsforecast, backtesting]
         SCH[Scheduler<br/>repeatable jobs]
         Q[(Redis<br/>queues, cache, rate-limit buckets)]
@@ -207,8 +209,8 @@ Each decision is written as a lightweight ADR. Full ADRs live in `docs/adr/` onc
 **ADR-005 — Python for forecasting only.**
 *Decision:* Forecasting runs in an isolated Python worker that reads from and writes to Postgres via the queue contract. *Rationale:* The best statistical forecasting libraries are in Python; isolating them keeps the main stack homogeneous.
 
-**ADR-006 — Write-back to inFlow is narrow, explicit, and gated.**
-*Decision:* The only v1 write-back is posting **approved cycle-count adjustments**. It sits behind a feature flag, requires a two-step approval, and is idempotent (a stored external reference prevents duplicate posting).
+**ADR-006 — The inFlow integration is read-only.**
+*Decision:* The dashboard never writes to inFlow. Cycle counts are planned in the dashboard but performed and recorded in inFlow, and replenishment recommendations are exported for people to act on. *Consequences:* The dashboard can't corrupt inventory records, and the API key can be read-only if inFlow supports scoped keys. Any future write-back needs its own ADR.
 
 **ADR-007 — Carrier delivery data from a tracking aggregator.**
 *Decision:* Because inFlow stores carrier and tracking number but not delivery confirmation, a single aggregator API (EasyPost, ShipEngine, or AfterShip; chosen in Phase 0) supplies delivery events. Manual delivery-date entry is the fallback.
@@ -232,16 +234,15 @@ Each decision is written as a lightweight ADR. Full ADRs live in `docs/adr/` onc
 |---|---|---|---|
 | Products (incl. categories, UoM, costs, item type) | All modules | Incremental | 15 min |
 | Locations / sublocations | All modules | Full (small) | Hourly |
-| Stock levels (by product × location × sublocation) | Inventory KPIs, counts, forecasts | Full or incremental | 15 min + nightly snapshot |
+| Stock levels (by product × location × sublocation) | Inventory KPIs, count scheduling, forecasts | Full or incremental | 15 min + nightly snapshot |
 | Vendors (+ vendor item pricing / lead times) | Vendor scorecards, replenishment | Incremental | Hourly |
 | Customers | Sales KPIs | Incremental | Hourly |
 | Purchase orders (+ lines, receiving) | Purchasing KPIs, vendor scorecards | Incremental | 15 min |
 | Sales orders (+ lines, picking/packing/shipping, carrier, tracking #) | Sales and fulfillment KPIs, carrier scorecards, forecast actuals | Incremental | 15 min |
 | Manufacturing orders (+ BOM, components, completion) | Manufacturing KPIs, dependent demand | Incremental | 15 min |
 | Bills of materials | Dependent demand explosion | Incremental | Daily |
-| Stock adjustments / transfers | Inventory movement history, shrink | Incremental | 15 min |
-| Stock counts | Cycle-count reconciliation | Incremental | 15 min |
-| **Write:** stock adjustment (or stock count completion) | Posting approved count variances | On demand | Event-driven |
+| Stock adjustments / transfers | Inventory movement history, velocity | Incremental | 15 min |
+| Stock counts (optional) | Marking scheduled counts done when a matching count is completed in inFlow | Incremental | Hourly |
 
 ### 6.3 Sync Strategy
 
@@ -283,10 +284,10 @@ sequenceDiagram
 ### 6.4 Rate Limiting and Resilience
 
 - **Token bucket in Redis**, shared across all workers, configured below inFlow's published limit (default: 80% of the documented cap). One global bucket per inFlow company.
-- **Priority lanes:** Interactive/targeted fetches (webhook hints, write-backs) go ahead of bulk backfill pages.
+- **Priority lanes:** Targeted fetches (webhook hints, admin-triggered syncs) go ahead of bulk backfill pages.
 - **Retries:** Exponential backoff with jitter on 429/5xx, honoring `Retry-After`. After 5 attempts the job goes to a dead-letter queue and shows in Admin → Sync.
 - **Circuit breaker:** After N consecutive failures, pause the entity's sync and alert admins rather than hammering the API.
-- **Idempotency:** Upserts keyed on `(entity, inflow_id)`. A content hash avoids rewriting unchanged rows. Write-backs carry a client reference stored in `ops.count_adjustments.inflow_reference`, which is checked before every post.
+- **Idempotency:** Upserts keyed on `(entity, inflow_id)`. A content hash avoids rewriting unchanged rows.
 - **Schema drift:** Normalizers validate payloads with Zod. Unknown fields are kept in raw, and missing required fields quarantine the record (it isn't dropped silently) and surface a warning.
 
 ### 6.5 Data Freshness Contract
@@ -304,7 +305,7 @@ Every API response that serves KPI or entity data includes `dataAsOf` (the oldes
 | `raw` | Immutable-ish landing of inFlow and tracking payloads (JSONB) | Sync workers | Normalizers, debugging |
 | `core` | Typed, normalized operational model mirroring inFlow plus enrichments | Normalizers | Everything |
 | `analytics` | Derived facts: KPI values, forecasts, scorecards, accuracy | Compute workers, forecast worker | API |
-| `ops` | Dashboard-owned workflow data: cycle counts, quality events, overrides | API (user actions) | API, workers |
+| `ops` | Dashboard-owned planning data: count schedules, quality events, overrides | API (user actions) | API, workers |
 | `app` | Users, roles, configuration, sync bookkeeping, alerts, audit | API, workers | API |
 
 **Conventions**
@@ -352,7 +353,7 @@ erDiagram
 | idp_subject | text UNIQUE | OIDC `sub` |
 | email | citext UNIQUE | |
 | display_name | text | |
-| role | enum `admin, executive, ops_manager, planner, inventory_lead, counter, viewer` | Primary role |
+| role | enum `admin, executive, ops_manager, planner, inventory_lead, viewer` | Primary role |
 | is_active | boolean | |
 | last_login_at | timestamptz | |
 
@@ -368,7 +369,6 @@ erDiagram
 | secret_ref | text | ARN/path in Secrets Manager, never the key itself |
 | api_version | text | Pinned inFlow API version |
 | status | enum `active, degraded, paused, error` | |
-| writeback_enabled | boolean default false | Feature flag for ADR-006 |
 | last_success_at | timestamptz | |
 
 **`app.sync_cursors`** — (connection_id, entity) PK, watermark timestamptz, last_cursor text, last_run_id FK.
@@ -424,7 +424,7 @@ Index on (entity, normalize_status) for the transform queue. Older payload versi
 | `core.locations` | id, inflow_id, name, type (`warehouse, store, production, virtual`), timezone, is_active |
 | `core.sublocations` | id, location_id FK, code (bin), zone, is_countable |
 | `core.product_categories` | id, inflow_id, name, parent_id (self FK), path (ltree) |
-| `core.products` | id, inflow_id, sku UNIQUE, name, category_id FK, item_type (`stocked, non_stocked, service, assembled/manufactured`), base_uom, standard_cost, avg_cost, list_price, is_active, **abc_class**, **xyz_class**, classification_updated_at, lead_time_days_override, safety_stock_override, source_modified_at |
+| `core.products` | id, inflow_id, sku UNIQUE, name, category_id FK, item_type (`stocked, non_stocked, service, assembled/manufactured`), base_uom, standard_cost, avg_cost, list_price, is_active, **abc_class** (by value; sets forecasting service levels), **velocity_class** (sets count frequency), **xyz_class**, classification_updated_at, lead_time_days_override, safety_stock_override, source_modified_at |
 | `core.vendors` | id, inflow_id, name, code, payment_terms, default_lead_time_days, currency, is_active |
 | `core.vendor_products` | vendor_id FK, product_id FK (composite PK), vendor_sku, unit_cost, quoted_lead_time_days, min_order_qty, is_preferred |
 | `core.customers` | id, inflow_id, name, type, region, is_active |
@@ -530,16 +530,17 @@ Partitioned by `grain`, with BRIN on `period_start`.
 
 ### 7.7 `ops` Schema — Workflows Owned by the Dashboard
 
-**Cycle counting**
+**Cycle count scheduling** (planning only; counts are recorded in inFlow)
 
 | Table | Key columns |
 |---|---|
-| `ops.count_policies` | id, location_id (nullable = default), abc_class, counts_per_year, tolerance_qty, tolerance_pct, tolerance_value, requires_recount_above_tolerance, is_active |
-| `ops.count_calendars` | id, location_id, working_days int[] (ISO DOW), daily_capacity_tasks, daily_capacity_minutes, blackout_dates date[] |
-| `ops.count_schedules` | id, location_id, name, period_start, period_end, status (`draft, published, closed`), generation_params jsonb, generated_at, published_by, published_at |
-| `ops.count_tasks` | id, schedule_id FK (nullable for ad-hoc), product_id, location_id, sublocation_id, scheduled_date, reason (`abc_cycle, exception_negative_stock, exception_variance_history, exception_high_value_move, adhoc, recount`), priority, assigned_to FK users, status (`planned, assigned, in_progress, submitted, recount_requested, approved, rejected, posted, skipped, cancelled`), system_qty_at_freeze, frozen_at, est_minutes |
-| `ops.count_results` | id, task_id FK, attempt_no, counted_qty, counted_by, counted_at, device_id, entry_method (`scan, manual`), system_qty, variance_qty, variance_pct, variance_value, within_tolerance, notes, photo_object_key |
-| `ops.count_adjustments` | id, result_id FK UNIQUE, approved_by, approved_at, second_approver (above value threshold), reason_code, adjustment_qty, status (`pending_post, posted, failed, manual`), inflow_reference (idempotency key), inflow_adjustment_id, posted_at, error |
+| `ops.velocity_settings` | location_id (nullable = default) PK, lookback_days (default 90), metric (`transactions, units`), fast_cutoff_pct (default 80), medium_cutoff_pct (default 95), demote_after_runs (default 2) |
+| `ops.count_policies` | id, location_id (nullable = default), velocity_class (`fast, medium, slow, dormant`), counts_per_year, is_active |
+| `ops.velocity_classifications` | product_id, location_id, classified_on (PK triple), transactions, units_moved, rank, cumulative_pct, velocity_class, previous_class, is_override |
+| `ops.velocity_overrides` | product_id, location_id (PK pair), forced_class, reason, set_by, set_at, expires_at |
+| `ops.count_calendars` | id, location_id, working_days int[] (ISO DOW), daily_capacity_lines, blackout_dates date[] |
+| `ops.count_schedules` | id, location_id, name, period_start, period_end, status (`draft, published, superseded`), generation_params jsonb, generated_at, published_by, published_at |
+| `ops.count_schedule_lines` | id, schedule_id FK, product_id, location_id, sublocation_id, scheduled_date, due_date, velocity_class, reason (`velocity_cycle, new_item, manual`), walk_sequence, is_locked, completed_in_inflow_at (nullable; set by the optional stock count sync), inflow_stock_count_id |
 
 **Supplier quality (not available in inFlow)**
 
@@ -559,7 +560,7 @@ Partitioned by `grain`, with BRIN on `period_start`.
 
 | Table | Key columns |
 |---|---|
-| `app.alert_rules` | id, name, rule_type (`kpi_threshold, kpi_trend, stockout_risk, late_po, sync_failure, count_variance`), kpi_code, dimension filter jsonb, comparator, threshold, evaluation_grain, cooldown_minutes, channels text[] (`in_app, email, teams, slack`), recipients jsonb, is_active, owner_id |
+| `app.alert_rules` | id, name, rule_type (`kpi_threshold, kpi_trend, stockout_risk, late_po, sync_failure, missed_counts`), kpi_code, dimension filter jsonb, comparator, threshold, evaluation_grain, cooldown_minutes, channels text[] (`in_app, email, teams, slack`), recipients jsonb, is_active, owner_id |
 | `app.alert_events` | id, rule_id, triggered_at, context jsonb (value, dimension, link), severity, status (`open, acknowledged, resolved, suppressed`), acknowledged_by, acknowledged_at |
 | `app.digest_subscriptions` | user_id, digest_type (`daily_exec, weekly_ops, monthly_scorecards`), channel, send_time_local, is_active |
 
@@ -589,7 +590,7 @@ Partitioned by `grain`, with BRIN on `period_start`.
 | Inventory | Days of Inventory on Hand | Avg inventory value ÷ (COGS ÷ days in period) | Lower (target band) |
 | Inventory | Excess & Obsolete % | Value of SKUs with no movement in 180 days or cover > 365 days ÷ total value | Lower |
 | Inventory | Stockout Rate | % of active stocked SKU-locations with available ≤ 0 (daily avg) | Lower |
-| Inventory | Inventory Record Accuracy (IRA) | % of count results within tolerance | Higher |
+| Inventory | Count Schedule Completion | Scheduled counts completed in inFlow by their scheduled date ÷ counts due (needs the optional stock count sync) | Higher |
 | Sales | Revenue / Gross Margin % | Shipped revenue; (revenue − COGS) ÷ revenue | Higher |
 | Sales | Backlog Value | Open SO value not yet shipped | Target band |
 | Fulfillment | Order Fill Rate | Units shipped complete on first shipment ÷ units ordered | Higher |
@@ -627,6 +628,7 @@ Partitioned by `grain`, with BRIN on `period_start`.
 5. **Fit and predict** p10/p50/p90 (conformal intervals where the model has no native intervals).
 6. **Apply overrides** from `ops.forecast_overrides` and write `forecast_published`.
 7. **Replenishment calculation:**
+   - ABC class (by trailing-12-month usage value: A ≈ top 80%, B next 15%, C the rest) is recalculated monthly and sets the service-level target.
    - Safety stock = z(service level by ABC class) × √(LT × σ_d² + d̄² × σ_LT²)
    - Reorder point = d̄ × LT + safety stock
    - Suggested order quantity = max(EOQ, MOQ) rounded to pack size when inventory position ≤ ROP
@@ -638,27 +640,40 @@ Partitioned by `grain`, with BRIN on `period_start`.
 
 ### 8.3 Cycle Count Scheduling
 
-**ABC classification** (monthly job, or on demand):
+The dashboard **plans** cycle counts; it doesn't run them. Counting, entering results, and adjusting inventory all stay in inFlow. The output is a calendar of which SKUs to count, where, and on which day, plus printable daily count sheets.
 
-- Rank SKUs by trailing-12-month **annual usage value** (units consumed or shipped × cost). A = top ~80% of value, B = next ~15%, C = remainder (configurable). Optional overrides: force A for high-theft or regulated items.
-- XYZ (demand variability) is calculated for forecasting and display.
+**Velocity classification** (weekly, Sunday night after the sync, or on demand)
 
-**Schedule generation algorithm**
+1. For each SKU × location, measure velocity over a trailing window (default 90 days):
+   - **Transactions** (default): the number of outbound movement lines, meaning shipment lines, MO component consumption, and transfers out. Count errors build up with each transaction, so this is the better driver of count frequency.
+   - **Units moved:** available as an alternative setting.
+2. Rank SKUs within each location from fastest to slowest and assign classes by cumulative share of total transactions (cutoffs are configurable):
 
-1. **Inputs:** location, period (for example the next quarter), policies (A = 12×/year, B = 4×, C = 1×), working calendar, daily capacity (tasks or minutes), and blackout dates.
-2. **Required counts** for each SKU-sublocation = counts_per_year × (period length ÷ 365), minus counts already completed in the cycle.
-3. **Spread evenly:** Target interval = period ÷ required counts. Assign each count to the working day nearest its ideal date, then balance load using a greedy fill that respects capacity, keeps the same sublocations/zones on the same day (to cut travel), and avoids counting a SKU with open picks or receipts scheduled that day where that is known.
-4. **Exception counts** are injected daily: negative on-hand, last count out of tolerance, large unexplained adjustments, high-value SKUs with movement since the last count, and "zero on-hand but open SO".
-5. Output is a **draft schedule** that a planner can preview, edit (drag tasks between days), and **publish**. Publishing creates `count_tasks`.
+   | Class | Default rule | Default counts per year |
+   |---|---|---|
+   | Fast | SKUs making up the top 80% of transactions | 12 (monthly) |
+   | Medium | The next 15% | 4 (quarterly) |
+   | Slow | Remaining SKUs with any movement | 2 (twice a year) |
+   | Dormant | No movement in the window, but stock on hand | 1 (yearly) |
 
-**Execution workflow**
+   SKUs with no movement and nothing on hand are left off the schedule.
+3. **Overrides:** A planner can pin a SKU to a class (for example, a slow-moving item that is prone to theft), optionally with an expiry date.
+4. **Stability:** A SKU moves *up* a class immediately, but only moves *down* after two weekly runs in a row agree. This stops the schedule from churning on a single quiet week.
 
-- **Freeze:** When a counter opens a task, the system captures `system_qty_at_freeze` from the latest inventory level. The counter **does not see** the system quantity (blind count).
-- **Enter:** The counter scans the bin and SKU and enters a quantity. Offline-capable PWA entries queue locally and sync when connectivity returns.
-- **Evaluate:** Variance is checked against the policy tolerance (qty, %, or value). Out of tolerance triggers an automatic recount request to a *different* counter where possible.
-- **Approve:** An inventory lead approves. Adjustments above the value threshold require a second approver.
-- **Post:** If write-back is enabled, a worker posts the adjustment to inFlow with an idempotency reference. Otherwise it's marked "manual" with a printable adjustment list.
-- **Measure:** IRA by ABC class, location, and counter, along with adjustment value (shrink) trend.
+**Schedule generation**
+
+1. **Inputs:** location, period (default: the next 13 weeks), counts per year for each class, the location's working days, daily capacity (SKU-locations per day), and blackout dates (month-end, physical inventory, etc.).
+2. **Due dates:** Each SKU-location's interval is 365 ÷ counts per year, so its next due date is its last count date plus that interval. The last count date comes from inFlow stock counts if that sync is available, otherwise from the previous schedule. New SKUs are due immediately.
+3. **Placement:** Each count goes on the working day nearest its due date. A greedy fill then levels the load so no day exceeds capacity; when a day is full, the count moves to the nearest day with room, with fast movers placed first so they stay closest to their due dates. Counts in the same zone or aisle are grouped onto the same day when that doesn't move anything more than a few days from its due date.
+4. **Walk order:** Each day's list is sorted by sublocation (bin) path so it can be counted in one pass.
+5. **Review and publish:** The inventory lead previews the calendar and load chart, drags lines between days or locks them, then publishes.
+6. **Rolling refresh:** Each week, after reclassification, the next 13 weeks are regenerated. The current week and any locked lines stay fixed; everything else is re-planned for class changes, new SKUs, and (if available) counts already completed in inFlow.
+
+**Outputs**
+
+- A month/week calendar showing scheduled counts per day against capacity.
+- A daily count sheet per location: SKU, description, bin, UoM, and a blank column for the counted quantity. System quantity is left off by default so counts stay blind. It exports as PDF, CSV, or XLSX and can be emailed to the inventory lead each morning.
+- If the stock count sync is enabled, an **adherence view** shows which scheduled counts were completed in inFlow on time, late, or not at all. This feeds the Count Schedule Completion KPI.
 
 ### 8.4 Vendor Scorecards
 
@@ -704,7 +719,7 @@ Breakdowns by service level, origin location, and destination region.
 
 ```
 apps/
-  web/                    Next.js frontend (dashboards + counter PWA)
+  web/                    Next.js frontend (dashboards)
   api/                    NestJS HTTP API
   worker/                 BullMQ job processors (same domain packages as api)
   forecaster/             Python forecasting worker
@@ -712,7 +727,7 @@ packages/
   domain-integration/     inFlow client, rate limiter, sync orchestration, normalizers
   domain-kpi/             KPI registry, calculators, targets
   domain-forecasting/     job contracts, override logic, replenishment reads
-  domain-cycle-count/     ABC classifier, schedule generator, count workflow state machine
+  domain-cycle-count/     velocity classifier, schedule generator, count sheet exports
   domain-scorecard/       metric calculators, template scoring engine
   domain-alerting/        rule evaluation, notification adapters
   db/                     Drizzle schema, migrations, query helpers
@@ -746,15 +761,15 @@ All routes are prefixed `/api/v1`. Responses include `dataAsOf`. Lists support c
 | | `PATCH /replenishment/recommendations/{id}` | Mark reviewed/dismissed |
 | | `POST /replenishment/export` | CSV/XLSX for inFlow PO import |
 | | `POST /forecasts/runs` / `GET /forecasts/runs/{id}` | Trigger a run and track progress |
-| Cycle counts | `GET/PUT /cycle-counts/policies` | ABC policies and tolerances |
-| | `POST /cycle-counts/classification/run` | Recompute ABC |
+| Cycle counts | `GET/PUT /cycle-counts/policies` | Counts per year for each velocity class, velocity cutoffs, capacity, blackout dates |
+| | `GET /cycle-counts/velocity` | Velocity class per SKU-location, with the movement figures behind it |
+| | `PUT /cycle-counts/velocity/overrides` | Pin a SKU to a class |
 | | `POST /cycle-counts/schedules/preview` | Generate a draft (no persistence) |
 | | `POST /cycle-counts/schedules` / `POST .../{id}/publish` | Save and publish |
-| | `GET /cycle-counts/tasks` | Calendar/list (filter by date, assignee, status) |
-| | `POST /cycle-counts/tasks/{id}/start` | Freeze system qty |
-| | `POST /cycle-counts/tasks/{id}/results` | Submit a count (idempotent client UUID) |
-| | `POST /cycle-counts/results/{id}/approve` / `.../recount` / `.../reject` | Variance workflow |
-| | `GET /cycle-counts/accuracy` | IRA metrics |
+| | `GET /cycle-counts/schedule` | Scheduled counts by date range (filter by location, class, zone) |
+| | `PATCH /cycle-counts/schedule-lines/{id}` | Move a line to another day, or lock it |
+| | `POST /cycle-counts/sheets/export` | Count sheet for a day as PDF / CSV / XLSX (async) |
+| | `GET /cycle-counts/adherence` | Scheduled vs completed in inFlow (needs the stock count sync) |
 | Scorecards | `GET /scorecards/{vendor|carrier}` | Leaderboard for a period |
 | | `GET /scorecards/{vendor|carrier}/{id}` | Detail, metric breakdown, and trend |
 | | `GET /scorecards/{vendor|carrier}/{id}/evidence` | Underlying POs/shipments for a metric |
@@ -781,10 +796,11 @@ All routes are prefixed `/api/v1`. Responses include `dataAsOf`. Lists support c
 | `compute` | `kpi:recompute` | After sync; nightly finalize 02:00 |
 | `compute` | `scorecard:recompute` | After PO/shipment changes; nightly |
 | `compute` | `abc:classify` | Monthly, 1st business day |
+| `counts` | `velocity:classify` | Weekly, Sun 21:00 |
+| `counts` | `counts:refresh-schedule` | Weekly, after `velocity:classify` |
 | `forecast` | `forecast:run` | Weekly Sun 22:00; manual |
 | `tracking` | `tracking:register`, `tracking:poll` | On new shipment; hourly fallback poll |
-| `counts` | `counts:exceptions` | Daily 05:00 |
-| `writeback` | `inflow:post-adjustment` | On approval (priority lane) |
+| `counts` | `counts:daily-sheet` | Daily 05:00 (email count sheets) |
 | `alerts` | `alerts:evaluate` | After KPI recompute; every 15 min |
 | `notify` | `digest:send` | Per subscription schedule |
 | `export` | `export:pdf`, `export:xlsx` | On demand |
@@ -871,38 +887,27 @@ All routes are prefixed `/api/v1`. Responses include `dataAsOf`. Lists support c
 
 /forecasting/runs  — <RunHistoryTable> → <RunDetailDrawer>
 
-/cycle-counts  — CycleCountHomePage
-├── <CountKpiStrip>                   IRA, tasks due today, overdue, pending approvals
-├── <CountCalendar view=month|week>   tasks per day, capacity heat
-│   └── <CalendarDayCell> → <DayTaskListPopover>
+/cycle-counts  — CountSchedulePage
+├── <CountSummaryStrip>               counts today / this week by velocity class; adherence % (if stock count sync is on)
+├── <CountCalendar view=month|week>   counts per day vs capacity
+│   └── <CalendarDayCell> → <DayCountListDrawer>   walk-ordered list, Print / Export
+├── <PrintSheetButton>                today's sheet as PDF / CSV / XLSX
 └── <ScheduleList> → "New schedule" → ScheduleBuilderWizard
 
 ScheduleBuilderWizard  (/cycle-counts/schedules/new)
-├── <ScopeStep>                       location, period, zones, include exceptions
-├── <PolicyStep>                      ABC frequencies, tolerances, capacity (prefilled)
+├── <ScopeStep>                       location, period, zones
+├── <PolicyStep>                      counts per year per velocity class, capacity, blackout dates (prefilled)
 ├── <PreviewStep>
-│   ├── <LoadBalanceChart>            tasks/day vs capacity
-│   └── <DraggableScheduleGrid>       move tasks between days
-└── <PublishStep>                     assignment rules, confirm
+│   ├── <LoadBalanceChart>            counts/day vs capacity
+│   └── <DraggableScheduleGrid>       move or lock lines
+└── <PublishStep>                     confirm, set morning email recipients
 
-/cycle-counts/review  — VarianceReviewPage
-├── <VarianceFilters>
-├── <VarianceTable>                   system vs counted, variance qty/value, tolerance flag
-│   └── <VarianceRowActions>          Approve · Request recount · Reject
-├── <ApproveAdjustmentDialog>         reason code, second-approver notice
-└── <WritebackStatusPanel>            posted / failed / manual
+/cycle-counts/velocity  — VelocityPage
+├── <VelocityClassSummary>            SKU count and share of transactions per class
+├── <VelocityTable>                   SKU, transactions, units, rank, class, previous class, override flag
+└── <OverrideDialog>                  pin class, reason, expiry
 
-/cycle-counts/accuracy  — <IraByClassChart>, <IraTrendChart>, <CounterPerformanceTable>, <ShrinkTrendChart>
-
-/count  — CounterPWA (mobile-first, minimal chrome)
-├── <CounterHeader>                   location, online/offline indicator, sync queue count
-├── <MyTasksQueue>                    sorted by bin path
-└── <CountEntryScreen>
-    ├── <BinScanInput>
-    ├── <SkuScanInput>                with product image/description confirm
-    ├── <QuantityKeypad>              UoM aware; system qty hidden (blind)
-    ├── <PhotoCapture optional>
-    └── <SubmitButton>                queues offline via IndexedDB
+/cycle-counts/adherence  — <AdherenceTrendChart>, <MissedCountsTable>   (only with the stock count sync)
 
 /scorecards/vendors  — VendorLeaderboardPage   (carriers page mirrors this)
 ├── <ScorecardPeriodPicker>
@@ -928,8 +933,8 @@ ScheduleBuilderWizard  (/cycle-counts/schedules/new)
 ├── /users         <UserTable>, <InviteUserDialog>, <RoleSelect>, <LocationAccessEditor>
 ├── /kpis          <KpiCatalogEditor> (descriptions, owners, active flag)
 ├── /scorecards    <ScorecardTemplateEditor> (weights must total 100)
-├── /counts        <CountPolicyEditor>, <CountCalendarEditor>
-├── /flags         <FeatureFlagToggles> (incl. inFlow write-back)
+├── /counts        <CountPolicyEditor>, <VelocitySettingsEditor>, <CountCalendarEditor>
+├── /flags         <FeatureFlagToggles>
 └── /audit         <AuditLogViewer>
 ```
 
@@ -945,7 +950,6 @@ ScheduleBuilderWizard  (/cycle-counts/schedules/new)
 
 - **Server state** lives in TanStack Query, with query keys built from the global filter state. There is no global client store for server data.
 - **Filter state** lives in the URL so every view is shareable and bookmarkable. Saved views persist filters server-side.
-- **Counter PWA** keeps an offline queue in IndexedDB, uses client-generated UUIDs for idempotent submissions, and replays in the background.
 
 ---
 
@@ -966,7 +970,7 @@ flowchart TD
     H -- errors --> I[Review quarantined records<br/>retry entity] --> G
     H -- yes --> J[Run reconciliation report<br/>counts & stock totals vs inFlow]
     J --> K[Map unmapped carriers]
-    K --> L[Review ABC classification + KPI targets]
+    K --> L[Review velocity classes, count policies + KPI targets]
     L --> M[Enable incremental schedule<br/>invite users]
 ```
 
@@ -1012,46 +1016,19 @@ flowchart TD
     J & K --> L[Status recorded; accuracy tracked as actuals arrive]
 ```
 
-### 11.4 Inventory Lead and Counter: Cycle Count Lifecycle
+### 11.4 Inventory Lead: Velocity-Based Count Scheduling
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Planned: Schedule published
-    Planned --> Assigned: Auto/manual assignment
-    Assigned --> InProgress: Counter opens task (system qty frozen, hidden)
-    InProgress --> Submitted: Count entered (scan + qty)
-    Submitted --> Approved: Within tolerance (auto) or lead approves
-    Submitted --> RecountRequested: Out of tolerance
-    RecountRequested --> InProgress: Recount by different counter
-    Submitted --> Rejected: Lead rejects (data error)
-    Approved --> Posted: Write-back to inFlow succeeds
-    Approved --> ManualPost: Write-back disabled / failed → manual list
-    Posted --> [*]
-    ManualPost --> [*]
-    Planned --> Skipped: Blackout / cancelled with reason
-    Skipped --> [*]
-```
-
-```mermaid
-flowchart LR
-    subgraph Plan [Inventory Lead — weekly/quarterly]
-        P1[Review ABC classes & policies] --> P2[Schedule Builder: scope, period, capacity]
-        P2 --> P3[Preview load-balanced calendar<br/>drag to adjust] --> P4[Publish]
-    end
-    subgraph Execute [Counter — daily, mobile]
-        E1[Open /count, see today's queue by bin path] --> E2[Scan bin → scan SKU → enter qty]
-        E2 --> E3[Submit — works offline, syncs later]
-    end
-    subgraph Review [Inventory Lead — daily]
-        R1[Variance Review queue] --> R2{Within tolerance?}
-        R2 -- yes --> R3[Bulk approve]
-        R2 -- no --> R4[Recount or investigate<br/>check recent movements]
-        R3 & R4 --> R5[Approve adjustment<br/>2nd approver if > $ threshold]
-        R5 --> R6[Post to inFlow / manual list]
-    end
-    P4 --> E1
-    E3 --> R1
-    R6 --> M[IRA KPI & shrink trend update]
+flowchart TD
+    A[Weekly: movement data synced from inFlow] --> B[Classify SKUs by velocity<br/>Fast / Medium / Slow / Dormant]
+    B --> C[Refresh next 13 weeks of schedule<br/>current week and locked lines unchanged]
+    C --> D[Inventory lead reviews calendar<br/>and class changes]
+    D --> E{Adjust?}
+    E -- yes --> F[Pin SKU classes, move or lock lines,<br/>edit capacity or blackout dates] --> C
+    E -- no --> G[Publish]
+    G --> H[Each morning: count sheet emailed or printed]
+    H --> I[Team counts and records results in inFlow]
+    I -. optional stock count sync .-> J[Dashboard marks counts done<br/>completion KPI updates]
 ```
 
 ### 11.5 Purchasing Manager: Monthly Vendor Scorecard Review
@@ -1096,23 +1073,21 @@ sequenceDiagram
 
 - OIDC SSO with the corporate IdP. MFA is enforced at the IdP.
 - Short-lived access tokens (15 min) with refresh. The API validates JWT signature, audience, and issuer.
-- Counter devices: same SSO, with an optional long-lived "device session" on shared warehouse tablets that is restricted to the `counter` role and location.
 
 ### 12.2 Role-Based Access Control
 
-| Capability | Admin | Executive | Ops Mgr | Planner | Inv. Lead | Counter | Viewer |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| View executive & KPI pages | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
-| Set KPI targets / annotate | ✓ | ✓ | annotate | – | – | – | – |
-| View forecasts | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ |
-| Override forecasts, run forecast | ✓ | – | – | ✓ | – | – | – |
-| Manage replenishment recs | ✓ | – | ✓ | ✓ | – | – | – |
-| Build/publish count schedules | ✓ | – | ✓ | – | ✓ | – | – |
-| Enter counts | ✓ | – | – | – | ✓ | ✓ | – |
-| Approve variances | ✓ | – | ✓ | – | ✓ | – | – |
-| View scorecards | ✓ | ✓ | ✓ | ✓ | – | – | ✓ |
-| Log quality events / claims, review scorecards | ✓ | – | ✓ | ✓ | – | – | – |
-| Edit templates, policies, users, integration, flags | ✓ | – | – | – | – | – | – |
+| Capability | Admin | Executive | Ops Mgr | Planner | Inv. Lead | Viewer |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| View executive & KPI pages | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Set KPI targets / annotate | ✓ | ✓ | annotate | – | – | – |
+| View forecasts | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Override forecasts, run forecast | ✓ | – | – | ✓ | – | – |
+| Manage replenishment recs | ✓ | – | ✓ | ✓ | – | – |
+| View count schedule, print count sheets | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Build/publish count schedules, override velocity class | ✓ | – | ✓ | – | ✓ | – |
+| View scorecards | ✓ | ✓ | ✓ | ✓ | – | ✓ |
+| Log quality events / claims, review scorecards | ✓ | – | ✓ | ✓ | – | – |
+| Edit templates, policies, users, integration, flags | ✓ | – | – | – | – | – |
 
 Row-level scoping by `user_location_access` is applied in the query layer for every location-dimensioned read.
 
@@ -1123,7 +1098,7 @@ Row-level scoping by `user_location_access` is applied in the query layer for ev
 - Webhooks: HMAC signature verification, timestamp tolerance, and replay protection via `webhook_inbox` uniqueness.
 - Principle of least privilege: separate DB roles for the API (no DDL), workers, migrations, and a read-only reporting role.
 - OWASP ASVS L2 controls: CSRF protection for cookie sessions, strict CSP, input validation via shared Zod contracts, rate limiting on the API.
-- **Audit log** for all writes: targets, overrides, policies, approvals, write-backs, user and role changes, and integration settings.
+- **Audit log** for all writes: targets, overrides, policies, count schedules, user and role changes, and integration settings.
 
 ---
 
@@ -1138,7 +1113,7 @@ Row-level scoping by `user_location_access` is applied in the query layer for ev
 | Backup / DR | RDS automated backups + PITR (7–35 days); daily snapshot copied cross-region; RPO 15 min, RTO 4 h. Raw payloads allow rebuild of core and analytics. |
 | Observability | Traces across API → queue → worker → inFlow; metrics for sync lag per entity, API throttle rate, job failures, KPI compute duration; dashboards and paging on sync lag > 2 h or DLQ growth |
 | Accessibility | WCAG 2.1 AA; color-blind-safe status palette (icons + color); keyboard navigable |
-| Browser support | Latest two versions of Chrome, Edge, Safari, Firefox; counter PWA on iOS Safari and Android Chrome |
+| Browser support | Latest two versions of Chrome, Edge, Safari, Firefox; responsive layouts on tablet and phone browsers |
 | Localization | Single locale and currency at launch; currency and timezone are stored, not assumed |
 
 ---
@@ -1147,13 +1122,13 @@ Row-level scoping by `user_location_access` is applied in the query layer for ev
 
 | Level | Approach |
 |---|---|
-| Unit | KPI calculators, scoring normalization, ABC classifier, schedule generator (property-based tests: capacity never exceeded, frequency targets met), variance/tolerance logic, replenishment math |
+| Unit | KPI calculators, scoring normalization, velocity and ABC classifiers, schedule generator (property-based tests: capacity never exceeded, counts-per-year targets met, blackout dates respected), replenishment math |
 | Contract | Recorded inFlow API fixtures (sanitized) validate normalizers; Zod contracts shared across web/API; a nightly canary against the live API in staging detects schema drift |
 | Integration | Testcontainers Postgres + Redis; full sync → normalize → KPI pipeline on a fixture company |
 | Data quality | Automated checks after each sync: row counts vs inFlow, FK orphans, negative quantities, PO lines without promised date, unmapped carriers. Results go to the admin page. |
 | KPI validation | **Golden dataset**: finance/ops-verified expected values for a closed month. CI fails if any KPI deviates. |
 | Forecast | Backtest regression: WAPE on a frozen benchmark set must not degrade beyond tolerance on model changes |
-| End-to-end | Playwright: executive drill-down, schedule build → count → approve, override → recompute, scorecard export |
+| End-to-end | Playwright: executive drill-down, schedule build → publish → export count sheet, override → recompute, scorecard export |
 | Performance | k6 load tests on KPI endpoints with production-like volumes |
 | UAT | Each phase ends with stakeholder UAT against acceptance criteria |
 
@@ -1161,7 +1136,7 @@ Row-level scoping by `user_location_access` is applied in the query layer for ev
 
 ## 15. Implementation Plan
 
-**Assumed team:** 1 tech lead/architect, 2 full-stack engineers, 1 data/forecasting engineer (~50%, full-time in Phase 5), 1 product designer (~50%), QA embedded. **Total: about 24–28 weeks** to full rollout, with a usable executive MVP at about week 10.
+**Assumed team:** 1 tech lead/architect, 2 full-stack engineers, 1 data/forecasting engineer (~50%, full-time in Phase 5), 1 product designer (~50%), QA embedded. **Total: about 22–26 weeks** to full rollout, with a usable executive MVP at about week 10.
 
 ```mermaid
 gantt
@@ -1176,7 +1151,7 @@ gantt
     Phase 2 KPI Engine & Executive Dashboard :p2, after p1, 4w
     section Expansion
     Phase 3 Vendor & Carrier Scorecards  :p3, after p2, 3w
-    Phase 4 Cycle Count Scheduling       :p4, after p3, 4w
+    Phase 4 Cycle Count Scheduling       :p4, after p3, 2w
     Phase 5 Forecasting & Replenishment  :p5, after p2, 5w
     section Launch
     Phase 6 Alerts, Hardening & Rollout  :p6, after p4, 3w
@@ -1190,14 +1165,14 @@ gantt
 
 **Objective:** Remove the big unknowns, agree on definitions, and stand up the skeleton.
 
-1. **inFlow API spike.** With a test company and API key, confirm the authentication, versioning header, pagination, modified-since filtering, `include` expansions, rate limits, webhook availability, and the write endpoint for stock adjustments/counts. Document the actual entity coverage against §6.2 and update assumptions A2–A4.
+1. **inFlow API spike.** With a test company and API key, confirm the authentication, versioning header, pagination, modified-since filtering, `include` expansions, rate limits, webhook availability, and whether completed stock counts can be read (for schedule adherence). Document the actual entity coverage against §6.2 and update assumptions A2–A4.
 2. **Data audit.** Pull a sample of POs, SOs, and MOs. Measure how often promised dates, carrier fields, tracking numbers, and costs are populated. Produce a **data readiness report** (for example, "38% of POs lack a vendor-promised date"), which sets expectations and process changes.
 3. **KPI definition workshop** with executives. Finalize the catalog (§8.1), formulas, owners, targets, fiscal calendar, and timezone. Sign off on the **KPI Dictionary** (`docs/kpi-dictionary.md`).
-4. **Scorecard and cycle-count policy workshop.** Set metric weights, grace days, tolerances, ABC frequencies, approval thresholds, and counting capacity per location.
+4. **Scorecard and cycle-count policy workshop.** Set scorecard weights and grace days, velocity class cutoffs and counts per year, and daily counting capacity and blackout dates per location.
 5. **Choose a tracking aggregator** (EasyPost, ShipEngine, or AfterShip) based on carrier coverage and cost.
 6. **Repo and platform skeleton.** Monorepo, lint/format/typecheck, CI pipeline, Terraform for dev/staging (VPC, RDS, Redis, ECS, S3, Secrets Manager), and a hello-world deploy of web + api + worker.
 7. **SSO integration** with the corporate IdP. Base RBAC roles.
-8. **Design system and wireframes.** Low-fidelity wireframes for the Executive Overview, KPI detail, scorecard detail, and counter PWA, validated with 2–3 target users.
+8. **Design system and wireframes.** Low-fidelity wireframes for the Executive Overview, KPI detail, scorecard detail, and count calendar, validated with 2–3 target users.
 
 **Deliverables:** API spike report, data readiness report, signed-off KPI dictionary, policy decisions, ADRs 001–007 ratified, deployed skeleton with SSO.
 **Exit criteria:** No unresolved blocker on API coverage; stakeholders have approved KPI definitions; CI/CD deploys to staging on merge.
@@ -1263,23 +1238,20 @@ gantt
 
 ---
 
-### Phase 4 — Cycle Count Scheduling (4 weeks)
+### Phase 4 — Cycle Count Scheduling (2 weeks)
 
-**Objective:** Replace ad-hoc counting with a planned, measured program.
+**Objective:** A velocity-based count schedule the warehouse team can follow, while counting itself stays in inFlow.
 
-1. Add migrations for the `ops.count_*` tables. Seed policies and calendars from the Phase 0 decisions.
-2. Build the **ABC/XYZ classification** job with overrides in admin.
-3. Build the **schedule generator** (§8.3) with property-based tests, plus the preview API.
-4. Add **exception count** detection (daily job).
-5. Build the **count workflow state machine** and APIs: start/freeze, submit (idempotent), tolerance evaluation, recount routing, approvals with a second-approver threshold.
-6. Frontend: the count calendar, **Schedule Builder wizard** with drag-and-drop preview, variance review, and accuracy dashboard.
-7. Build the **Counter PWA**: task queue by bin path, barcode scanning (camera + keyboard wedge), blind entry, offline queue (IndexedDB), and installable manifest.
-8. Build the **inFlow write-back** worker for approved adjustments (behind a feature flag): idempotency reference, retry, failure surfacing, plus a manual-post fallback list.
-9. Add the IRA KPI into the KPI engine (counts domain).
-10. **Pilot** at one location for 2 weeks with write-back **off**, then enable write-back after parallel verification.
+1. Add migrations for the `ops` velocity and count schedule tables. Seed velocity cutoffs, counts per year, and calendars from the Phase 0 decisions.
+2. Build the weekly **velocity classification** job (transactions or units, cumulative-share cutoffs, the stability rule) and SKU overrides.
+3. Build the **schedule generator** (§8.3) with property-based tests, the preview API, and the weekly rolling refresh.
+4. Frontend: count calendar, **Schedule Builder wizard** with drag-and-drop preview, and the velocity page.
+5. Build **count sheet exports** (PDF/CSV/XLSX, walk-ordered, blind by default) and the optional morning email.
+6. If the Phase 0 spike confirmed that completed inFlow stock counts can be read: match them to schedule lines, build the adherence view, and add the Count Schedule Completion KPI.
+7. Publish the first schedule at a **pilot location**. The pilot runs into Phase 6, comparing planned daily load with what the team actually finishes, and capacity is tuned from that.
 
-**Deliverables:** Cycle count program live at the pilot location; IRA KPI on the executive dashboard.
-**Exit criteria:** The generated schedule meets ABC frequency targets within ±5% while never exceeding capacity; offline counts sync without loss in field testing; 20 consecutive write-backs verified in inFlow with no duplicates.
+**Deliverables:** A published 13-week count schedule for the pilot location; daily count sheets.
+**Exit criteria:** Each velocity class is scheduled within ±5% of its counts-per-year target; no day exceeds capacity; the inventory lead signs off on the first published schedule.
 
 ---
 
@@ -1313,9 +1285,9 @@ gantt
 3. **Performance pass:** query plans, indexes, materialized views, cache tuning, and k6 load tests at 2× expected volume.
 4. **Security review:** dependency audit, pen test of auth/RBAC and webhooks, secret rotation drill, audit-log completeness check.
 5. **DR drill:** restore from PITR into a fresh environment; rebuild analytics from raw.
-6. Write **runbooks**: sync lag, inFlow outage, DLQ handling, write-back failure, forecast run failure, KPI backfill.
-7. **Training and documentation:** role-based quick guides, the in-app KPI definitions, and a counter training video.
-8. **Rollout:** all locations for cycle counts and all user groups. Hypercare for 2 weeks with daily triage.
+6. Write **runbooks**: sync lag, inFlow outage, DLQ handling, forecast run failure, KPI backfill.
+7. **Training and documentation:** role-based quick guides, the in-app KPI definitions, and a one-page guide to reading and printing count schedules.
+8. **Rollout:** count schedules for all locations, and all user groups. Hypercare for 2 weeks with daily triage.
 
 **Deliverables:** Production-hardened platform, alerts and digests, runbooks, trained users.
 **Exit criteria:** All NFRs (§13) met in load and DR tests; no open Sev-1/Sev-2 defects; at least 80% of target users active weekly by the end of hypercare.
@@ -1327,7 +1299,9 @@ gantt
 - Promotions and causal factors in forecasting (ML models such as LightGBM with exogenous features).
 - Multi-echelon inventory optimization across locations, and transfer recommendations.
 - Vendor portal for scorecard sharing and promise-date confirmation.
-- Direct PO creation in inFlow from approved recommendations (extends ADR-006 write-back scope).
+- Direct PO creation in inFlow from approved recommendations (needs a new ADR, since the integration is read-only today).
+- Exception counts added to the velocity schedule (negative on-hand, large unexplained adjustments).
+- Inventory record accuracy KPI built from inFlow count results.
 - Read-only semantic layer for Power BI/Excel.
 - Capacity/labor KPIs for manufacturing if routing/labor data becomes available.
 
@@ -1342,8 +1316,8 @@ gantt
 | R3 | Poor source data quality (missing promised dates, free-text carriers, inconsistent costs) | High | High | Data readiness report in Phase 0; data-quality dashboard; process fixes in inFlow; scorecards show "insufficient data" instead of misleading scores |
 | R4 | Executives dispute KPI numbers, eroding trust | Med | High | Signed-off KPI dictionary, golden dataset tests, numerator/denominator transparency, drill-to-document, annotations |
 | R5 | Insufficient history for reliable forecasts | Med | Med | Demand classification, low-confidence flags, category-level fallbacks, planner overrides, accuracy tracked visibly |
-| R6 | Write-back creates incorrect or duplicate adjustments in inFlow | Low | High | Feature flag, two-step approval, idempotency key, pilot with write-back off, parallel verification, audit log |
-| R7 | Counter adoption (warehouse connectivity, device constraints) | Med | Med | Offline-first PWA, scanner support, short training, pilot location feedback |
+| R6 | Velocity classes change often, so the schedule keeps shifting | Med | Med | 90-day lookback, demotions only after two agreeing weekly runs, current week and locked lines never re-planned, manual class pins |
+| R7 | The schedule isn't followed, since counting happens in inFlow outside the dashboard | Med | Med | Morning count sheets by email, realistic capacity tuned in the pilot, adherence tracking from inFlow stock counts where available |
 | R8 | Tracking aggregator coverage or cost for regional/LTL carriers | Med | Med | Choose provider by coverage in Phase 0; manual delivery entry fallback; LTL proof-of-delivery import |
 | R9 | inFlow API version changes break sync | Low | Med | Pinned version header, contract tests, nightly staging canary, quarantine path instead of crash |
 | R10 | Scope creep toward a full BI tool | Med | Med | Non-goals stated; export and read-only reporting role as a pressure valve |
@@ -1358,8 +1332,8 @@ gantt
 4. Do vendors confirm promised dates, and are they entered on POs in inFlow today?
 5. Which carriers are used (parcel vs. LTL vs. own fleet)? Is a shipping platform already in use (ShipStation, etc.) that has delivery data?
 6. How are vendor quality issues recorded today (if at all)?
-7. Current cycle-count practice: frequency, who counts, devices available (scanners, phones, tablets), Wi-Fi coverage in the warehouse?
-8. Should approved count adjustments post to inFlow automatically, or is a manual post preferred initially?
+7. Current cycle-count practice: who counts, how many SKU-locations can be counted per day at each location, and which days are off-limits (month-end, big receiving days)?
+8. Should velocity be measured by number of transactions (picks) or by units moved? We recommend transactions, because count errors happen per transaction.
 9. What service-level targets (fill rate) should drive safety stock by ABC class?
 10. Preferred identity provider for SSO, and preferred cloud (AWS vs. Azure)?
 11. Who are the KPI owners, and which 6–8 KPIs belong on the executive overview?
@@ -1371,9 +1345,9 @@ gantt
 
 | Term | Meaning |
 |---|---|
-| **ABC classification** | Ranking SKUs by annual usage value; A items get the most attention and count frequency |
+| **ABC classification** | Ranking SKUs by annual usage value; used here to set safety-stock service levels |
+| **Velocity class** | Fast / Medium / Slow / Dormant, based on how often a SKU moves; sets how often it is counted |
 | **XYZ classification** | Ranking SKUs by demand variability (X stable … Z erratic) |
-| **IRA** | Inventory Record Accuracy: % of counts where system qty matches physical within tolerance |
 | **OTIF** | On-Time In-Full delivery |
 | **WAPE** | Weighted Absolute Percentage Error: Σ\|actual − forecast\| ÷ Σ actual |
 | **Bias** | Σ(forecast − actual) ÷ Σ actual; positive means over-forecasting |
@@ -1382,4 +1356,4 @@ gantt
 | **PPV** | Purchase Price Variance |
 | **Watermark** | Last successfully synced modification timestamp per entity |
 | **DLQ** | Dead-letter queue: jobs that exhausted retries and need human review |
-| **Blind count** | A count where the counter can't see the system quantity |
+| **Blind count** | A count where the counter can't see the system quantity (the default for count sheets) |
