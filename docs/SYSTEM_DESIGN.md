@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.3 — stock transfer metrics added, carrier rules and blank-carrier handling confirmed (2 Oct 2026) |
+| **Status** | Draft v2.4 — inventory accuracy matched to your weekly table; bin transfers ignored (2 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -165,7 +165,7 @@ The delivered product is **one HTML file**. The builder uses ordinary developmen
 | `inFlow_StockLevels` (CSV) | Quantity on hand by SKU, location, and sublocation | 1,208 rows, 780 SKUs, 3 locations | Current | Usable |
 | `inFlow_ProductDetails` (CSV) | Product master: SKU, name, category, item type, cost, price, UoM, last vendor, auto-manufacture flag | 1,291 products | Current | Usable |
 | `inFlow_BOM` (CSV) | Bills of materials | 1,399 rows (1,196 active), 465 finished products | Current | Usable |
-| `Stock_transfer_report` (CSV, saved report) | Transfer lines: transfer #, SKU, transfer / sent / received dates, from and to location and sublocation, qty, cost | 1,227 lines / 381 transfers (20 between sites, 361 bin moves within Aurora) | Jan 23 – Oct 2, 2026 | Usable |
+| `Stock_transfer_report` (CSV, saved report) | Transfer lines: transfer #, SKU, transfer / sent / received dates, from and to location and sublocation, qty, cost | 1,227 lines / 381 transfers (20 between sites; 361 same-location bin transfers, which are ignored) | Jan 23 – Oct 2, 2026 | Usable |
 | `Shipment_Summary` (XLSX, from the freight portal) | LTL/truckload shipments: direction, carrier, mode, scheduled vs actual pickup and delivery, weight, total cost | 50 shipments (44 outbound, 6 inbound) | Aug 3 – Oct 1, 2026 | Usable. The second copy sent matches the first |
 
 ### 5.2 What the Sample Files Showed
@@ -207,8 +207,8 @@ Each finding comes with how the app handles it.
     - 26 lines have a blank counted quantity; they're treated as not counted.
     - 176 lines have a negative quantity on record. Under your formula these shrink the denominator (see §7.1).
 11. **Stock transfer report.**
-    - Of 381 transfers, 20 move stock **between sites**: Aurora→DFW 8, DFW→Houston 10, Houston→DFW 2. The other 361 are **bin moves within Aurora** (same from and to location). The two are reported separately.
-    - All transfers in the sample have a received date, so "in transit" can only be measured if the report also lists unreceived transfers (to confirm).
+    - Of 381 transfers, 20 move stock **between sites**: Aurora→DFW 8, DFW→Houston 10, Houston→DFW 2. The other 361 are bin transfers within Aurora (same from and to location). These are no longer done, so **any transfer with the same from and to location is ignored** everywhere.
+    - Transfers sent but not yet received appear in the report with a blank received date (confirmed), so Transfers In Transit works.
     - 193 lines have $0 cost, so transferred value is understated for those items.
     - Aurora→DFW transfers ($440K) have no matching freight-portal shipment, so their freight cost isn't in the portal file.
 12. **Product and stock data quality.**
@@ -376,7 +376,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 
 | KPI | Definition (as shown in the app) | Reports | Status |
 |---|---|---|---|
-| Inventory Accuracy % | (Σ counted quantity ÷ Σ quantity on record) × 100, over all stock count lines started last week. Lines with no counted quantity are skipped. | 4 | Ready |
+| Inventory Accuracy % | (Total Units Counted ÷ Total Units Reported) × 100 for last week's counts. The tile also shows Total Units Reported, Total Units Counted, and Total Variance (reported − counted), matching your weekly table. Lines with no counted quantity are skipped. | 4 | Ready; source rows to confirm (§7.1b) |
 | Units Blended | Σ quantity on Blend orders completed last week | 3 | Ready |
 | Units Filled | Σ quantity on Fill orders completed last week | 3 | Ready |
 | Units Kitted | Σ quantity on Kit orders completed last week, including kits auto-built at sales order fulfillment (`MO-` numbers) | 3 | Ready |
@@ -386,7 +386,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Freight Paid vs Freight Spent | **Paid:** freight charged to customers on orders fulfilled last week by freight carriers or with carrier unknown. **Spent:** total cost of outbound customer shipments picked up last week in the freight portal. Shows both dollar amounts and recovery % (paid ÷ spent). *Ground shipments, inbound freight, and transfer freight are not included. Orders with no carrier are included as "Carrier unknown".* | 1 + 2 + 7 | Ready |
 | Freight as % of Sales | Outbound customer freight spent ÷ Total Sales, last week. *Ground shipments are not included.* | 1 + 7 | Ready |
 | Total Freight Spend | All freight-portal cost picked up last week: outbound to customers + inbound + transfer freight (portal shipments matched to a stock transfer), with each part shown. *Ground shipments are not included.* | 7 + 8 | Ready |
-| Stock Transfers | Inter-site transfers **sent** last week: number of transfers, units, and value at cost. Bin moves within a site are not included. | 8 | Ready |
+| Stock Transfers | Inter-site transfers **sent** last week: number of transfers, units, and value at cost. Same-location (bin) transfers are ignored. | 8 | Ready |
 | Transfer Transit Time | Average business days from sent to received for inter-site transfers received last week | 8 | Ready |
 | Current Inventory Value | Σ on-hand quantity × product cost, as of the latest Stock Levels upload. Negative on-hand excluded. | 5 + 6 | Ready ($0-cost caveat, §5.2) |
 
@@ -398,15 +398,14 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Inbound Freight Spend | Freight-portal cost of inbound shipments. Standalone metric, also part of Total Freight Spend. |
 | Transfer Freight Spend | Freight-portal cost of shipments matched to a stock transfer. Also shown as freight cost per $100 of value transferred. |
 | Transfer Processing Time | Average days from transfer date (created) to sent date |
-| Transfers In Transit | Inter-site transfers sent but not yet received: count and value. Needs the report to include unreceived transfers. |
-| Internal Bin Moves | Transfers where from and to location are the same: moves, lines, and units by location |
+| Transfers In Transit | Inter-site transfers sent but not yet received (blank received date): count, units, value, and days since sent |
 | Count lines exact % | Share of counted lines where counted = on record. Shown next to Inventory Accuracy %, because the accuracy formula nets overcounts against undercounts. |
 
 **Draft values from the sample files, week of Sep 21–27, 2026** (to check against what you know; not final):
 
 | KPI | Draft value |
 |---|---|
-| Inventory Accuracy % | 90.9% by the formula, vs **98% in your numbers**. Reconciliation is in §7.1b and an open question in §14. |
+| Inventory Accuracy % | Your table for 9/21–9/25: **98.00%** (13,158 counted ÷ 13,426 reported; variance 268). The sample export gives 90.9% on fewer units; see §7.1b. |
 | Units Blended / Filled / Kitted | 7,676 / 4,495 / 1,385 (992 manual + 393 auto-built) |
 | Units Sold | 13,988 |
 | Total Sales | $509,442 ($500,694 items + $8,748 adjustments; $19,357 tax excluded) |
@@ -427,20 +426,22 @@ More KPIs can be added later as definitions in the same format. Candidates the d
 - **Transportation metrics** exclude ground shipments (all UPS, FedEx Ground/Home/2-day/Overnight), and their on-screen descriptions say so.
 - **Inventory Accuracy note:** As defined, overcounts offset undercounts, and negative on-record quantities shrink the denominator. "Count lines exact %" is shown alongside so the headline number can't hide large offsetting errors.
 
-### 7.1b Inventory Accuracy Reconciliation (open)
+### 7.1b Inventory Accuracy: Matching Your Weekly Table
 
-Your figure for last week is **98%**. The same formula on the sample stock count report gives these results:
+Your current report for week 9/21–9/25:
 
-| Count lines included | Σ counted ÷ Σ on record |
-|---|---|
-| Started Sep 21–27 (5 counts, 132 lines), all lines | 90.9% |
-| Sep 21–27, excluding lines with negative on-record | 85.7% |
-| Started Sep 28 – Oct 2 ("Cycle Count 9/29", 87 lines), all lines | 107.2% |
-| Sep 28 – Oct 2, excluding negative on-record | **98.6%** |
-| Last 7 days to Oct 2, excluding negative on-record | 99.1% |
+| Week | Inventory Accuracy % | Total Units Reported | Total Units Counted | Total Variance |
+|---|---|---|---|---|
+| 9/21 – 9/25 | 98.00 | 13,426 | 13,158 | 268 |
 
-The Sep 21–27 result is pulled down mostly by two pigment items in "Cycle Count 9.21" (873 on record vs 423 counted, and 931 vs 534). The closest match to 98% is the most recent count with negative on-record lines left out. The KPI will be set to match the method you use (§14).
+**The formula is confirmed:** accuracy = counted ÷ reported × 100, and variance = reported − counted. Overcounts and undercounts offset each other. The app shows the same four columns, using the Monday–Sunday week, which includes your Tuesday–Friday counting days.
 
+**The rows don't match yet.** The sample stock count report has only **8,169 units reported and 7,423 counted** for counts started Sep 21–25. Those are the five counts "Cycle Count 9.21", "9.22", "REZ 9.24", "9.25 RAW", and "9.25 102", which give 90.9%. Your table has about 5,250 more units reported. No combination of counts in the export reproduces 13,426 / 13,158, so your table includes count lines that aren't in this export. Possible reasons:
+- The saved report has a filter.
+- Some counts are dated differently, for example by completed date.
+- Your table includes counts from another source.
+
+The app will compute directly from the stock count export, so that export has to contain the same lines your table uses (§14).
 
 ### 7.1a KPI Explorer (expanded KPI page)
 
@@ -454,7 +455,7 @@ Clicking any tile, or opening **KPIs** in the menu, opens the KPI Explorer, whic
   - **Units sold, units shipped, and sales:** by product category, product, customer, and location.
   - **Fulfillment speed:** by location, carrier class, and days-to-fulfill buckets (0, 1, 2, 3–5, 6+).
   - **Freight:** by direction (outbound, inbound, transfer), carrier, mode (LTL, truckload), and origin location.
-  - **Transfers:** by lane (from → to), product category, and product. Transit and processing time trends. Bin moves by location.
+  - **Transfers:** by lane (from → to), product category, and product. Transit and processing time trends, and transfers currently in transit.
   - **Inventory accuracy:** by location, count, velocity class, and SKU, with the biggest variances first.
   - **Inventory value:** by location and category.
 - **Production vs demand view:** units blended, filled, and kitted as stacked bars, with units sold and shipped as lines on the same chart.
@@ -491,7 +492,7 @@ The dashboard plans counts. Counting and recording happen in inFlow's Stock Coun
 
 **Velocity classification** (every refresh)
 
-1. For each SKU × location, count **transactions** over the last 90 days: sales order lines, manufacturing order lines, component use worked out from the BOM, and stock transfer lines in or out (inter-site and bin moves). Receipts aren't included unless the optional movement history export (F3) is added.
+1. For each SKU × location, count **transactions** over the last 90 days: sales order lines, manufacturing order lines, component use worked out from the BOM, and inter-site stock transfer lines in or out (bin transfers ignored). Receipts aren't included unless the optional movement history export (F3) is added.
 2. Rank SKUs from most to least transactions and classify them by cumulative share:
 
    | Class | Default rule | Cadence | Placement window |
@@ -794,8 +795,9 @@ The count schedule comes right after import because it needs the least data (pro
 2. ✅ Decided: units, not gallons; counting 40–60 SKUs/day per location, Tuesday–Friday; US dollars only; executive KPIs and definitions (§7.1); ground excluded from transportation metrics; inbound freight in total spend only.
 3. ✅ Weekly upload checklist defined (§5.4).
 4. ✅ Blank carrier = "Carrier unknown", included. Carrier classes confirmed. Transfers come from the stock transfer report only.
-5. ☐ Reconcile the Inventory Accuracy method (§7.1b, §14).
-6. ☐ Optional: older history, if inFlow has data before February 2026.
+5. ✅ Inventory Accuracy formula confirmed; bin transfers ignored; in-transit transfers confirmed.
+6. ☐ Match stock count source rows to your weekly table (§7.1b, §14).
+7. ☐ Optional: older history, if inFlow has data before February 2026.
 
 **Acceptance:** Every executive KPI is mapped to a real export column, or a documented fallback is agreed.
 
@@ -871,18 +873,18 @@ The count schedule comes right after import because it needs the least data (pro
 
 ## 14. What Is Needed From You to Start
 
-All required files are in hand. One thing to settle before building:
+All required files are in hand and all definitions are settled. One check remains:
 
-1. **How your 98% Inventory Accuracy is calculated.** The same formula on the sample gives 90.9% for counts started Sep 21–27 (§7.1b). Please confirm:
-   - Which counts or dates make up "last week" for you. Is it counts *started* Mon–Sun, or the latest count (for example "Cycle Count 9/29")?
-   - Whether lines with a **negative** quantity on record are left out. Leaving them out on the 9/29 count gives 98.6%.
-   - Or simply tell me where the 98% comes from (an inFlow screen or a spreadsheet), and the app will match it.
+1. **Stock count rows behind your 98%.** Your 9/21–9/25 table has 13,426 units reported. The stock count export has 8,169 for counts started in those dates (§7.1b). Please send either:
+   - the spreadsheet or count list your weekly table is built from, or
+   - the stock count report re-exported with no filters for Sep 21–25.
+
+   Once the app's totals match 13,426 / 13,158 for that week, the KPI is verified.
 
 Also helpful, not blocking:
 
 - Make Shipping Carrier required on sales orders in inFlow, so "Carrier unknown" shrinks over time.
 - Fill in costs for the 217 stocked items and 193 transfer lines with $0 or blank cost.
-- Confirm whether the stock transfer report lists transfers that have been sent but not yet received. If it does, Transfers In Transit works too.
 - Older history, if inFlow has data before February 2026.
 
 ---
