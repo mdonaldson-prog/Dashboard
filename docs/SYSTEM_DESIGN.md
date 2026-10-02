@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.4 — inventory accuracy matched to your weekly table; bin transfers ignored (2 Oct 2026) |
+| **Status** | Draft v2.5 — working prototype built (`app/`, see §16); inventory accuracy uses completed stock counts (2 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -26,8 +26,9 @@
 11. [Designing for Zero Maintenance](#11-designing-for-zero-maintenance)
 12. [Implementation Plan](#12-implementation-plan)
 13. [Risks and Mitigations](#13-risks-and-mitigations)
-14. [What Is Needed From You to Start](#14-what-is-needed-from-you-to-start)
+14. [Open Items](#14-open-items)
 15. [Glossary](#15-glossary)
+16. [Prototype](#16-prototype)
 
 ---
 
@@ -209,7 +210,7 @@ Each finding comes with how the app handles it.
 11. **Stock transfer report.**
     - Of 381 transfers, 20 move stock **between sites**: Aurora→DFW 8, DFW→Houston 10, Houston→DFW 2. The other 361 are bin transfers within Aurora (same from and to location). These are no longer done, so **any transfer with the same from and to location is ignored** everywhere.
     - Transfers sent but not yet received appear in the report with a blank received date (confirmed), so Transfers In Transit works.
-    - 193 lines have $0 cost, so transferred value is understated for those items.
+    - 14 inter-site transfer lines have $0 cost, so transferred value is understated for those items.
     - Aurora→DFW transfers ($440K) have no matching freight-portal shipment, so their freight cost isn't in the portal file.
 12. **Product and stock data quality.**
     - 57 product rows have no SKU, and 41 stock rows don't match a product by SKU or name. These are listed on the import report.
@@ -376,7 +377,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 
 | KPI | Definition (as shown in the app) | Reports | Status |
 |---|---|---|---|
-| Inventory Accuracy % | (Total Units Counted ÷ Total Units Reported) × 100 for last week's counts. The tile also shows Total Units Reported, Total Units Counted, and Total Variance (reported − counted), matching your weekly table. Lines with no counted quantity are skipped. | 4 | Ready; source rows to confirm (§7.1b) |
+| Inventory Accuracy % | (Total Units Counted ÷ Total Units Reported) × 100 for last week's counts. The tile also shows Total Units Reported, Total Units Counted, and Total Variance (reported − counted), matching your weekly table. Lines with no counted quantity are skipped. | 4 | Ready |
 | Units Blended | Σ quantity on Blend orders completed last week | 3 | Ready |
 | Units Filled | Σ quantity on Fill orders completed last week | 3 | Ready |
 | Units Kitted | Σ quantity on Kit orders completed last week, including kits auto-built at sales order fulfillment (`MO-` numbers) | 3 | Ready |
@@ -405,7 +406,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 
 | KPI | Draft value |
 |---|---|
-| Inventory Accuracy % | Your table for 9/21–9/25: **98.00%** (13,158 counted ÷ 13,426 reported; variance 268). The sample export gives 90.9% on fewer units; see §7.1b. |
+| Inventory Accuracy % | **98.3%**: 14,165 counted ÷ 14,410 reported, variance 245 (completed counts started Sep 21–27) |
 | Units Blended / Filled / Kitted | 7,676 / 4,495 / 1,385 (992 manual + 393 auto-built) |
 | Units Sold | 13,988 |
 | Total Sales | $509,442 ($500,694 items + $8,748 adjustments; $19,357 tax excluded) |
@@ -426,22 +427,11 @@ More KPIs can be added later as definitions in the same format. Candidates the d
 - **Transportation metrics** exclude ground shipments (all UPS, FedEx Ground/Home/2-day/Overnight), and their on-screen descriptions say so.
 - **Inventory Accuracy note:** As defined, overcounts offset undercounts, and negative on-record quantities shrink the denominator. "Count lines exact %" is shown alongside so the headline number can't hide large offsetting errors.
 
-### 7.1b Inventory Accuracy: Matching Your Weekly Table
+### 7.1b Inventory Accuracy: Source
 
-Your current report for week 9/21–9/25:
+Decision (2 Oct): Inventory Accuracy uses the **completed stock count report as-is**. The formula is accuracy = counted ÷ reported × 100 and variance = reported − counted, so overcounts and undercounts offset each other. The tile shows the four columns of your weekly table: Accuracy %, Total Units Reported, Total Units Counted, and Total Variance.
 
-| Week | Inventory Accuracy % | Total Units Reported | Total Units Counted | Total Variance |
-|---|---|---|---|---|
-| 9/21 – 9/25 | 98.00 | 13,426 | 13,158 | 268 |
-
-**The formula is confirmed:** accuracy = counted ÷ reported × 100, and variance = reported − counted. Overcounts and undercounts offset each other. The app shows the same four columns, using the Monday–Sunday week, which includes your Tuesday–Friday counting days.
-
-**The rows don't match yet.** Even with the completed-counts-only report (re-sent 2 Oct), the stock count report has only **8,169 units reported and 7,423 counted** for counts started Sep 21–25. Those are the five counts "Cycle Count 9.21", "9.22", "REZ 9.24", "9.25 RAW", and "9.25 102", which give 90.9%. Your table has about 5,250 more units reported. No combination of counts in the export reproduces 13,426 / 13,158, so your table includes count lines that aren't in this export. Possible reasons:
-- The saved report has a filter.
-- Some counts are dated differently, for example by completed date.
-- Your table includes counts from another source.
-
-The app will compute directly from the stock count export, so that export has to contain the same lines your table uses (§14).
+*Correction:* An earlier version of this section said the export only had 8,169 units reported for Sep 21–25. That was an error in my side analysis: quantities written with units, such as "576.2725 gal.", were dropped. The app's importer reads them correctly. The completed counts for Sep 21–27 total **14,410 reported and 14,165 counted, giving 98.3%**, close to your 98.00%.
 
 ### 7.1a KPI Explorer (expanded KPI page)
 
@@ -796,7 +786,7 @@ The count schedule comes right after import because it needs the least data (pro
 3. ✅ Weekly upload checklist defined (§5.4).
 4. ✅ Blank carrier = "Carrier unknown", included. Carrier classes confirmed. Transfers come from the stock transfer report only.
 5. ✅ Inventory Accuracy formula confirmed; bin transfers ignored; in-transit transfers confirmed.
-6. ☐ Match stock count source rows to your weekly table (§7.1b, §14).
+6. ✅ Inventory Accuracy uses the completed stock count report as-is.
 7. ☐ Optional: older history, if inFlow has data before February 2026.
 
 **Acceptance:** Every executive KPI is mapped to a real export column, or a documented fallback is agreed.
@@ -871,23 +861,54 @@ The count schedule comes right after import because it needs the least data (pro
 
 ---
 
-## 14. What Is Needed From You to Start
+## 14. Open Items
 
-All required files are in hand and all definitions are settled. One check remains:
+All required files are in hand and all definitions are settled. A working prototype exists (§16).
 
-1. **Stock count rows behind your 98%.** Your 9/21–9/25 table has 13,426 units reported. The stock count export has 8,169 for counts started in those dates (§7.1b). Please send either:
-   - the spreadsheet or count list your weekly table is built from, or
-   - the stock count report re-exported with no filters for Sep 21–25.
-
-   Once the app's totals match 13,426 / 13,158 for that week, the KPI is verified.
-
-Also helpful, not blocking:
+Helpful, not blocking:
 
 - Make Shipping Carrier required on sales orders in inFlow, so "Carrier unknown" shrinks over time.
-- Fill in costs for the 217 stocked items and 193 transfer lines with $0 or blank cost.
+- Fill in costs for the 217 stocked items and 14 inter-site transfer lines with $0 or blank cost.
+- **Units Sold includes items sold by the pound.** Custom blended flake is sold per lb and shipped from Torginol; one order line was 6,000 lb. This is why Units Sold peaks at about 60,000 in the week of Aug 10. Consider excluding per-lb items, or reporting them separately.
 - Older history, if inFlow has data before February 2026.
 
 ---
+
+## 16. Prototype
+
+A working prototype is in `app/`, built as the single self-contained HTML file described in §4. `release/Dashboard.html` is the ready-to-use file; it contains no data. Open it in Edge or Chrome and drop in the weekly reports.
+
+**Built**
+
+- **Import:** drag-and-drop, file picker, or folder picker. Each report is recognized by its columns, with a validation report and warnings.
+- **Overview:** all executive KPI tiles for the selected week and location, with change from the prior week, a 13-week sparkline, and supporting figures. Also a production vs demand chart and the Attention list.
+- **KPI Explorer:** every KPI plus supporting metrics.
+  - 13, 26, or 52-week or full range, by week or month, with a 4-period average.
+  - Click a period to focus on it.
+  - Breakdowns by dimension, with click-to-filter.
+  - Compare up to 3 KPIs on an indexed chart.
+  - Record-level drill-down with CSV export.
+- **Cycle counts:** velocity classes per location, capacity check with ways to close the gap, live settings (capacity, Fast cutoff, cadences), and a 13-week calendar.
+  - A day list in walk order, with a printable blind count sheet and CSV.
+  - Class overrides.
+  - "Counting active" switch per location.
+- **Data & settings:** report status, carrier classes (editable), negative stock and $0-cost items, location mapping, holidays, and settings export/import.
+- Light and dark themes, a desktop sidebar or mobile bottom navigation, and responsive tables and charts.
+
+**Not yet built (later phases):** month close and adjustment notes (§7.2), forecasting and reorder suggestions (§7.4), and vendor and carrier scorecards (§7.5–7.6).
+
+**Prototype simplifications**
+
+- Settings are saved in the browser, with export/import to a JSON file, rather than in `dashboard-data/state.json` in the shared folder.
+- Loaded reports aren't remembered between sessions: load them again each time, or use "Open folder".
+- The 90-day merge archive (§6.3) isn't built yet, so each upload should cover the full history you want to see.
+- The rule that delays a SKU moving to a slower velocity class until two weekly refreshes agree (§7.3) isn't applied yet.
+
+**Developer commands** (in `app/`):
+- `npm install`
+- `npm run build`: builds `dist/index.html`.
+- `npm run verify -- <exports folder>`: prints last week's KPIs and the count plan.
+- `npm run demo-data -- <folder> && DEMO=1 npx vite build --outDir dist-demo`: builds a copy with sample data embedded. It isn't committed, because it contains business data.
 
 ## 15. Glossary
 

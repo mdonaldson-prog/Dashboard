@@ -1,0 +1,28 @@
+{
+  "name": "executive-ops-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "verify": "tsx scripts/verify.ts",
+    "demo-data": "tsx scripts/build-demo-data.ts",
+    "build:demo": "npm run demo-data && DEMO=1 vite build --outDir dist-demo"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0",
+    "papaparse": "^5.7.0",
+    "preact": "^11.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^26.6.4",
+    "@types/papaparse": "^5.5.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
