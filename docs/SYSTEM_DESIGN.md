@@ -161,7 +161,7 @@ The delivered product is **one HTML file**. The builder uses ordinary developmen
 | `inFlow_SalesOrder` (CSV) | Sales orders, one row per line, with the order header repeated on each line | 19,483 lines / 4,814 orders | Feb 3 – Oct 2, 2026 | Usable |
 | `MD_Sales_Orders_Shipped` (CSV, saved custom report) | One row per fulfilled order: order #, customer, order date, fulfillment date | 4,074 orders | Order dates Mar 1 – Sep 30, 2026 | Usable. Provides the ship date missing from the sales export |
 | `MD_Complete_MFG_Orders` (CSV, saved custom report) | Completed manufacturing orders: category, product, SKU, MO #, qty, order and completed dates, unit cost | 3,902 rows / 3,406 MOs | Mar 2 – Sep 30, 2026 | Usable |
-| `Stock_count_report` (CSV, saved report) | Stock count lines: location, sublocation, SKU, count #, started date, snapshot (on record) qty, counted qty, adjustment and value | 822 lines / 18 counts, all at Aurora | Mar 5 – Sep 29, 2026 | Usable |
+| `Stock_count_report` (CSV, saved report, **completed counts only**) | Stock count lines: location, sublocation, SKU, count #, started date, snapshot (on record) qty, counted qty, adjustment and value | 645 lines / 14 completed counts, all at Aurora | May 14 – Sep 29, 2026 | Usable |
 | `inFlow_StockLevels` (CSV) | Quantity on hand by SKU, location, and sublocation | 1,208 rows, 780 SKUs, 3 locations | Current | Usable |
 | `inFlow_ProductDetails` (CSV) | Product master: SKU, name, category, item type, cost, price, UoM, last vendor, auto-manufacture flag | 1,291 products | Current | Usable |
 | `inFlow_BOM` (CSV) | Bills of materials | 1,399 rows (1,196 active), 465 finished products | Current | Usable |
@@ -203,7 +203,7 @@ Each finding comes with how the app handles it.
    - 33 of 50 shipments have no actual arrival time, so carrier on-time delivery covers only some shipments.
 10. **Stock count report.**
     - Counts exist only for Aurora so far. Houston and DFW will start later. Each location has a "counting active" switch, and accuracy is reported per location from its first count.
-    - The report has a started date but no completed date or status, so a count is dated by its started date.
+    - The saved report is filtered to completed counts only, so every count in it is complete. Counts are dated by their started date.
     - 26 lines have a blank counted quantity; they're treated as not counted.
     - 176 lines have a negative quantity on record. Under your formula these shrink the denominator (see §7.1).
 11. **Stock transfer report.**
@@ -245,7 +245,7 @@ Every Monday (or the first workday of the week), export these into `inflow-expor
 | 1 | **Sales Orders** (`inFlow_SalesOrder`) | inFlow → Sales Orders → Export | Order date: last 90 days | Units Sold, Total Sales, Freight Paid, velocity |
 | 2 | **MD Sales Orders Shipped** (saved report) | inFlow → Reports | Fulfillment date: last 90 days | Order Fulfillment Speed, Units Shipped |
 | 3 | **MD Complete MFG Orders** (saved report) | inFlow → Reports | Completed date: last 90 days | Units Blended / Filled / Kitted, velocity |
-| 4 | **Stock count report** (saved report) | inFlow → Reports | Started date: last 90 days | Inventory Accuracy %, last-counted dates for the count schedule |
+| 4 | **Stock count report** (saved report, filtered to **completed** counts) | inFlow → Reports | Started date: last 90 days | Inventory Accuracy %, last-counted dates for the count schedule |
 | 5 | **Stock Levels** (`inFlow_StockLevels`) | inFlow → export | None (current) | Current Inventory Value, count sheets, weekly history snapshot |
 | 6 | **Product Details** (`inFlow_ProductDetails`) | inFlow → Products → Export | None (current) | Costs for inventory value, categories, new SKUs |
 | 7 | **Shipment Summary** | Freight portal | Scheduled pickup: last 90 days | Freight spent: outbound, inbound, transfers; carrier on-time |
@@ -436,7 +436,7 @@ Your current report for week 9/21–9/25:
 
 **The formula is confirmed:** accuracy = counted ÷ reported × 100, and variance = reported − counted. Overcounts and undercounts offset each other. The app shows the same four columns, using the Monday–Sunday week, which includes your Tuesday–Friday counting days.
 
-**The rows don't match yet.** The sample stock count report has only **8,169 units reported and 7,423 counted** for counts started Sep 21–25. Those are the five counts "Cycle Count 9.21", "9.22", "REZ 9.24", "9.25 RAW", and "9.25 102", which give 90.9%. Your table has about 5,250 more units reported. No combination of counts in the export reproduces 13,426 / 13,158, so your table includes count lines that aren't in this export. Possible reasons:
+**The rows don't match yet.** Even with the completed-counts-only report (re-sent 2 Oct), the stock count report has only **8,169 units reported and 7,423 counted** for counts started Sep 21–25. Those are the five counts "Cycle Count 9.21", "9.22", "REZ 9.24", "9.25 RAW", and "9.25 102", which give 90.9%. Your table has about 5,250 more units reported. No combination of counts in the export reproduces 13,426 / 13,158, so your table includes count lines that aren't in this export. Possible reasons:
 - The saved report has a filter.
 - Some counts are dated differently, for example by completed date.
 - Your table includes counts from another source.
