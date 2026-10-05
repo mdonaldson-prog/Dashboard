@@ -15,7 +15,7 @@ function movingAvg(vals: (number | null)[], n: number) {
 }
 
 /** KPI over time: columns for totals, a line for rates; plus a 4-period moving average. */
-export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; selected?: string; onSelect?: (key: string) => void }) {
+export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; target?: number; selected?: string; onSelect?: (key: string) => void }) {
   const { def, points, grain } = props;
   const vals = points.map((p) => p.value);
   const ma = movingAvg(vals, 4);
@@ -24,7 +24,7 @@ export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; 
     <Chart
       class="tall"
       label={`${def.name} by ${grain}`}
-      deps={[points, props.selected]}
+      deps={[points, props.selected, props.target]}
       onClick={(p) => props.onSelect?.(points[p.dataIndex]?.key)}
       build={(t) => ({
         ...baseOption(t),
@@ -69,6 +69,17 @@ export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; 
           {
             name: "4-period average", type: "line", data: ma, symbol: "none", lineStyle: { width: 1.5, color: t.muted, opacity: 0.9 }, z: 3,
           },
+          ...(props.target != null
+            ? [{
+                name: "Target", type: "line", data: [], silent: true,
+                markLine: {
+                  silent: true, symbol: "none",
+                  label: { color: t.text2, fontSize: 11, position: "insideEndTop", formatter: `Target ${compact(props.target, def.unit)}` },
+                  lineStyle: { color: t.text2, type: "solid", width: 1.5 },
+                  data: [{ yAxis: props.target }],
+                },
+              }]
+            : []),
         ],
       })}
     />
@@ -152,44 +163,6 @@ export function ProductionChart(props: { c: Ctx; facts: (d: KpiDef) => Fact[]; f
               lineStyle: { width: 2, color: t.series[k] }, itemStyle: { color: t.series[k], borderColor: t.surface, borderWidth: 2 },
             })),
           ],
-        })}
-      />
-    </div>
-  );
-}
-
-/** Up to three KPIs indexed to 100 at their first period with data — one axis, no dual scales. */
-export function CompareChart(props: { c: Ctx; defs: KpiDef[]; facts: (d: KpiDef) => Fact[]; from: string; to: string; grain: Grain }) {
-  const ser = props.defs.map((d) => series(props.c, d, props.facts(d), props.grain, props.from, props.to));
-  const keys = ser[0]?.map((p) => p.key) ?? [];
-  const indexed = ser.map((s) => {
-    const base = s.find((p) => p.value != null && p.value !== 0)?.value;
-    return s.map((p) => (p.value == null || !base ? null : (p.value / base) * 100));
-  });
-  return (
-    <div>
-      <div class="legend" style={{ marginBottom: 8 }}>
-        {props.defs.map((d, i) => <span><i style={{ background: `var(--series-${i + 1})` }} />{d.name}</span>)}
-      </div>
-      <Chart
-        label="KPI comparison, indexed"
-        deps={[props.defs.map((d) => d.id).join(), props.from, props.to, props.grain, props.facts]}
-        build={(t) => ({
-          ...baseOption(t),
-          tooltip: {
-            ...(baseOption(t).tooltip as object),
-            formatter: (ps: any[]) => {
-              const i = ps[0]?.dataIndex ?? 0;
-              return `<div style="font-weight:600">${esc(periodLong(props.grain, keys[i]))}</div>` +
-                props.defs.map((d, k) => tipRow(t.series[k], `${d.name} (index ${indexed[k][i] == null ? "—" : Math.round(indexed[k][i]!)})`, ser[k][i].value == null ? "—" : full(ser[k][i].value!, d.unit))).join("");
-            },
-          },
-          xAxis: { type: "category", data: keys.map((k) => periodLabel(props.grain, k)), ...axisStyle(t), splitLine: { show: false } },
-          yAxis: { type: "value", ...axisStyle(t), axisLine: { show: false }, scale: true },
-          series: props.defs.map((d, k) => ({
-            name: d.name, type: "line", data: indexed[k], symbol: "circle", symbolSize: 7, connectNulls: false,
-            lineStyle: { width: 2, color: t.series[k] }, itemStyle: { color: t.series[k], borderColor: t.surface, borderWidth: 2 },
-          })),
         })}
       />
     </div>

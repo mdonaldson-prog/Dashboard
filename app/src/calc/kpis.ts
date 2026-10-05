@@ -4,12 +4,13 @@
 
 import type { ReportKind } from "../data/model";
 import { CARRIER_CLASS_LABEL } from "../data/settings";
-import type { Ctx } from "./context";
+import type { Ctx, ShipmentX } from "./context";
+import { transactionCounts } from "./counts";
 import { addDays, businessDays, mondayOf, monthOf } from "./dates";
 
 export type Unit = "units" | "pct" | "days" | "usd" | "count";
 export type Agg = "sum" | "ratio" | "avg";
-export type Better = "up" | "down" | "near100" | "none";
+export type Better = "up" | "down" | "near100" | "near0" | "none";
 
 export interface Fact {
   date: string;
@@ -24,7 +25,7 @@ export interface Extra { label: string; value: number; unit: Unit }
 export interface KpiDef {
   id: string;
   name: string;
-  group: "Inventory" | "Production" | "Sales & fulfillment" | "Freight" | "Transfers";
+  group: "Inventory" | "Production" | "Sales & fulfillment" | "Freight";
   unit: Unit;
   agg: Agg;
   better: Better;
@@ -103,22 +104,26 @@ const soCols = (dateLabel: string) => [
   { key: "qty", label: "Units", unit: "units" as Unit }, { key: "subtotal", label: "Amount", unit: "usd" as Unit },
 ];
 
-/** Freight-portal cost facts. `dirs` picks outbound / inbound / transfer. */
-function portalFacts(c: Ctx, dirs: string[], asDen = false): Fact[] {
+const dirLabel = (c: Ctx, s: ShipmentX) => (s.dir === "inbound" ? "Inbound" : s.destLoc ? "Between your sites" : "Outbound to customers");
+
+/** Freight-portal cost facts. `dirs`: outbound (to customers), inbound, own (between your sites). */
+function portalFacts(c: Ctx, dirs: ("outbound" | "inbound" | "own")[], _spent = false): Fact[] {
   return c.shipments
-    .filter((s) => dirs.includes(s.dir) && s.pickup)
-    .map((s) => ({
+    .filter((s) => s.pickup)
+    .map((s) => ({ s, d: (s.dir === "inbound" ? "inbound" : s.destLoc ? "own" : "outbound") as "outbound" | "inbound" | "own" }))
+    .filter(({ d }) => dirs.includes(d))
+    .map(({ s, d }) => ({
       date: s.pickup,
-      num: asDen ? 0 : s.cost,
-      den: asDen ? s.cost : 1,
+      num: s.cost,
+      den: 1,
       dims: {
         location: s.dir === "inbound" ? s.destLoc || "Other" : s.originLoc || "Other",
-        direction: s.dir === "outbound" ? "Outbound to customers" : s.dir === "inbound" ? "Inbound" : "Transfers",
+        direction: dirLabel(c, s),
         carrier: s.carrier || "(none)",
         mode: s.mode || "(none)",
         origin: s.originCity,
       },
-      ref: { date: s.pickup, id: s.id, dir: s.dir, carrier: s.carrier, mode: s.mode, from: s.originCity, to: `${s.dest} (${s.destCity})`, cost: s.cost, transfer: s.transfer },
+      ref: { date: s.pickup, id: s.id, dir: d, carrier: s.carrier, mode: s.mode, from: s.originCity, to: `${s.dest} (${s.destCity})`, cost: s.cost, weight: s.weight },
     }));
 }
 const portalCols = [
@@ -161,6 +166,7 @@ export const KPIS: KpiDef[] = [
         { label: "Units reported", value: rep, unit: "units" },
         { label: "Units counted", value: cnt, unit: "units" },
         { label: "Variance", value: rep - cnt, unit: "units" },
+        { label: "Lines exact", value: f.length ? (f.filter((x) => x.num === x.den).length / f.length) * 100 : NaN, unit: "pct" },
       ];
     },
   },
@@ -241,8 +247,43 @@ export const KPIS: KpiDef[] = [
     facts: (c) => soLineFacts(c, "order", ["item", "adjustment"], "subtotal"),
   },
   {
-    id: "freight_recovery", name: "Freight Paid vs Spent", group: "Freight", unit: "pct", agg: "ratio", better: "up",
-    description: `Recovery % = freight paid ÷ freight spent. Paid: freight charged to customers on orders fulfilled in the period by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound customer shipments picked up in the period. Inbound freight and transfers are not included. ${GROUND_NOTE}`,
+    id: "late_orders", name: "Late Orders", group: "Sales & fulfillment", unit: "count", agg: "sum", better: "down",
+    description: "Open (unfulfilled) orders more than 3 business days old as of the latest data. Orders that only contain items shipped from another location or non-stock items are left out. The breakdown and records show every open order with its age.",
+    sources: ["salesOrders", "shipped"], tile: true, pointInTime: true, locationAware: true,
+    dims: [{ key: "age", label: "Age" }, { key: "location", label: "Location" }, { key: "customer", label: "Customer" }],
+    refCols: [
+      { key: "order", label: "Order #" }, { key: "customer", label: "Customer" }, { key: "location", label: "Location" }, { key: "orderDate", label: "Ordered" },
+      { key: "age", label: "Business days open", unit: "days" }, { key: "status", label: "Status" }, { key: "units", label: "Units", unit: "units" }, { key: "value", label: "Value", unit: "usd" },
+    ],
+    facts: (c) => {
+      const out: Fact[] = [];
+      const lateAfter = c.s.lateOrderDays;
+      for (const o of c.orders.values()) {
+        if (o.isQuote || o.cancelled || o.fulfilled || /^fulfilled$/i.test(o.status)) continue;
+        const lines = c.linesByOrder.get(o.order) ?? [];
+        const stock = lines.filter((l) => l.kind === "item" && c.lineClass(l, o) === "stock");
+        if (!stock.length) continue;
+        const age = businessDays(o.orderDate, c.latest, c.holidays);
+        const units = sum(stock.map((l) => l.qty));
+        const value = sum(lines.filter((l) => l.kind !== "tax").map((l) => l.subtotal));
+        const late = age > lateAfter;
+        out.push({
+          date: c.snapshotDate, num: late ? 1 : 0, den: 1,
+          dims: { age: age <= lateAfter ? `0–${lateAfter} days (on time)` : age <= 5 ? `${lateAfter + 1}–5 days` : age <= 10 ? "6–10 days" : age <= 30 ? "11–30 days" : "Over 30 days", location: o.location, customer: o.customer || "(no customer)" },
+          ref: { order: o.order, customer: o.customer, location: o.location, orderDate: o.orderDate, age, status: o.status, units, value },
+        });
+      }
+      return out;
+    },
+    extras: (f) => [
+      { label: "Open orders", value: f.length, unit: "count" },
+      { label: "Open units", value: sum(f.map((x) => Number(x.ref.units))), unit: "units" },
+      { label: "Open value", value: sum(f.map((x) => Number(x.ref.value))), unit: "usd" },
+    ],
+  },
+  {
+    id: "freight_net", name: "Freight Paid vs Spent", group: "Freight", unit: "usd", agg: "sum", better: "up",
+    description: `Net freight = paid − spent. Paid: freight charged to customers on orders fulfilled in the period by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound shipments to customers picked up in the period. Inbound freight and shipments between your own sites are not included. ${GROUND_NOTE}`,
     sources: ["salesOrders", "shipped", "shipments"], tile: true, locationAware: true,
     dims: [{ key: "side", label: "Paid / spent" }, { key: "carrier", label: "Carrier" }, { key: "location", label: "Location" }],
     refCols: [
@@ -254,29 +295,29 @@ export const KPIS: KpiDef[] = [
       for (const o of c.orders.values()) {
         if (!o.fulfilled || o.isQuote || o.cancelled || !(o.carrierClass === "freight" || o.carrierClass === "unknown") || !o.freight) continue;
         out.push({
-          date: o.fulfilled, num: o.freight, den: 0,
+          date: o.fulfilled, num: o.freight, den: 1,
           dims: { side: "Paid by customers", carrier: o.carrier || "Carrier unknown", location: o.location },
           ref: { date: o.fulfilled, side: "Paid", doc: o.order, party: o.customer, paid: o.freight, spent: 0 },
         });
       }
       for (const f of portalFacts(c, ["outbound"], true)) {
-        out.push({ ...f, dims: { side: "Spent with carriers", carrier: f.dims.carrier, location: f.dims.location }, ref: { date: f.date, side: "Spent", doc: f.ref.id, party: f.ref.carrier, paid: 0, spent: f.den } });
+        out.push({ ...f, num: -f.ref.cost, den: 1, dims: { side: "Spent with carriers", carrier: f.dims.carrier, location: f.dims.location }, ref: { date: f.date, side: "Spent", doc: f.ref.id, party: f.ref.carrier, paid: 0, spent: f.ref.cost } });
       }
       return out;
     },
     extras: (f) => [
-      { label: "Paid", value: sum(f.map((x) => x.num)), unit: "usd" },
-      { label: "Spent", value: sum(f.map((x) => x.den)), unit: "usd" },
+      { label: "Paid", value: sum(f.map((x) => Number(x.ref.paid))), unit: "usd" },
+      { label: "Spent", value: sum(f.map((x) => Number(x.ref.spent))), unit: "usd" },
     ],
   },
   {
     id: "freight_pct_sales", name: "Freight as % of Sales", group: "Freight", unit: "pct", agg: "ratio", better: "down",
-    description: `Outbound customer freight spent (freight portal) ÷ Total Sales, in the period. ${GROUND_NOTE}`,
+    description: `Outbound freight to customers (freight portal) ÷ Total Sales, in the period. ${GROUND_NOTE}`,
     sources: ["salesOrders", "shipments"], tile: true, locationAware: true,
     dims: [{ key: "location", label: "Location" }],
     refCols: [{ key: "date", label: "Date" }, { key: "doc", label: "Order / shipment" }, { key: "freight", label: "Freight", unit: "usd" }, { key: "sales", label: "Sales", unit: "usd" }],
     facts: (c) => [
-      ...portalFacts(c, ["outbound"]).map((f) => ({ ...f, den: 0, ref: { date: f.date, doc: `Shipment ${f.ref.id}`, freight: f.num, sales: 0 } })),
+      ...portalFacts(c, ["outbound"], true).map((f) => ({ ...f, num: f.ref.cost as number, den: 0, ref: { date: f.date, doc: `Shipment ${f.ref.id}`, freight: f.ref.cost, sales: 0 } })),
       ...soLineFacts(c, "order", ["item", "adjustment"], "subtotal").map((f) => ({ ...f, den: f.num, num: 0, ref: { date: f.date, doc: `Order ${f.ref.order}`, freight: 0, sales: f.ref.subtotal } })),
     ],
     extras: (f) => [
@@ -286,14 +327,14 @@ export const KPIS: KpiDef[] = [
   },
   {
     id: "total_freight", name: "Total Freight Spend", group: "Freight", unit: "usd", agg: "sum", better: "down",
-    description: `All freight-portal cost picked up in the period: outbound to customers, inbound, and transfer freight (shipments matched to a stock transfer). ${GROUND_NOTE}`,
+    description: `All freight-portal cost picked up in the period: outbound to customers, inbound, and shipments between your own sites. ${GROUND_NOTE}`,
     sources: ["shipments"], tile: true, locationAware: true,
     dims: [{ key: "direction", label: "Direction" }, { key: "carrier", label: "Carrier" }, { key: "mode", label: "Mode" }, { key: "location", label: "Site" }],
-    refCols: portalCols, facts: (c) => portalFacts(c, ["outbound", "inbound", "transfer"]),
+    refCols: portalCols, facts: (c) => portalFacts(c, ["outbound", "inbound", "own"]),
     extras: (f) => [
-      { label: "Outbound", value: sum(f.filter((x) => x.ref.dir === "outbound").map((x) => x.num)), unit: "usd" },
+      { label: "To customers", value: sum(f.filter((x) => x.ref.dir === "outbound").map((x) => x.num)), unit: "usd" },
       { label: "Inbound", value: sum(f.filter((x) => x.ref.dir === "inbound").map((x) => x.num)), unit: "usd" },
-      { label: "Transfers", value: sum(f.filter((x) => x.ref.dir === "transfer").map((x) => x.num)), unit: "usd" },
+      { label: "Between sites", value: sum(f.filter((x) => x.ref.dir === "own").map((x) => x.num)), unit: "usd" },
     ],
   },
   {
@@ -304,67 +345,86 @@ export const KPIS: KpiDef[] = [
     refCols: portalCols, facts: (c) => portalFacts(c, ["inbound"]),
   },
   {
-    id: "stock_transfers", name: "Stock Transfers", group: "Transfers", unit: "units", agg: "sum", better: "none",
-    description: "Units on inter-site transfers sent in the period. Same-location (bin) transfers are ignored.",
-    sources: ["transfers"], tile: true, locationAware: true,
-    dims: [{ key: "lane", label: "Route" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }],
+    id: "carrier_on_time", name: "Carrier On-Time Delivery", group: "Freight", unit: "pct", agg: "ratio", better: "up",
+    description: `Freight-portal shipments delivered on or before the scheduled delivery date ÷ shipments with an actual delivery date, by delivery date. Shipments with no actual arrival in the portal aren't measured. ${GROUND_NOTE}`,
+    sources: ["shipments"], tile: true, locationAware: true,
+    dims: [{ key: "carrier", label: "Carrier" }, { key: "direction", label: "Direction" }, { key: "mode", label: "Mode" }],
     refCols: [
-      { key: "date", label: "Sent" }, { key: "transfer", label: "Transfer #" }, { key: "lane", label: "Route" }, { key: "product", label: "Product" },
-      { key: "qty", label: "Units", unit: "units" }, { key: "cost", label: "Value", unit: "usd" },
+      { key: "date", label: "Delivered" }, { key: "id", label: "Shipment" }, { key: "carrier", label: "Carrier" }, { key: "scheduled", label: "Scheduled" },
+      { key: "late", label: "Days late", unit: "days" }, { key: "to", label: "To" },
     ],
     facts: (c) =>
-      c.ds.transfers
-        .filter((t) => t.sent)
-        .map((t) => ({
-          date: t.sent, num: t.qty, den: 1,
-          dims: { lane: `${t.from} → ${t.to}`, category: c.category(t.sku, t.product), product: t.product, from: t.from, to: t.to },
-          ref: { date: t.sent, transfer: t.transfer, lane: `${t.from} → ${t.to}`, product: t.product, qty: t.qty, cost: t.cost },
-        })),
-    extras: (f) => [
-      { label: "Transfers", value: new Set(f.map((x) => x.ref.transfer)).size, unit: "count" },
-      { label: "Value", value: sum(f.map((x) => Number(x.ref.cost))), unit: "usd" },
-    ],
-  },
-  {
-    id: "transfer_transit", name: "Transfer Transit Time", group: "Transfers", unit: "days", agg: "avg", better: "down",
-    description: "Average business days from sent to received, for inter-site transfers received in the period.",
-    sources: ["transfers"], tile: true, locationAware: true,
-    dims: [{ key: "lane", label: "Route" }],
-    refCols: [
-      { key: "date", label: "Received" }, { key: "transfer", label: "Transfer #" }, { key: "lane", label: "Route" }, { key: "sent", label: "Sent" },
-      { key: "days", label: "Business days", unit: "days" }, { key: "units", label: "Units", unit: "units" }, { key: "value", label: "Value", unit: "usd" },
-    ],
-    facts: (c) =>
-      c.transfers
-        .filter((t) => t.sent && t.received)
-        .map((t) => {
-          const d = businessDays(t.sent, t.received, c.holidays);
+      c.shipments
+        .filter((s) => s.actualArrival && s.scheduledDelivery)
+        .map((s) => {
+          const late = Math.max(0, businessDays(s.scheduledDelivery, s.actualArrival, c.holidays));
           return {
-            date: t.received, num: d, den: 1, dims: { lane: t.lane, from: t.from, to: t.to },
-            ref: { date: t.received, transfer: t.transfer, lane: t.lane, sent: t.sent, days: d, units: t.units, value: t.value },
+            date: s.actualArrival, num: s.actualArrival <= s.scheduledDelivery ? 1 : 0, den: 1,
+            dims: { carrier: s.carrier || "(none)", direction: dirLabel(c, s), mode: s.mode || "(none)", location: s.dir === "inbound" ? s.destLoc || "Other" : s.originLoc || "Other" },
+            ref: { date: s.actualArrival, id: s.id, carrier: s.carrier, scheduled: s.scheduledDelivery, late, to: `${s.dest} (${s.destCity})` },
           };
         }),
+    extras: (f) => [
+      { label: "Delivered", value: f.length, unit: "count" },
+      { label: "Late", value: f.filter((x) => !x.num).length, unit: "count" },
+    ],
   },
   {
-    id: "transfer_freight", name: "Transfer Freight Spend", group: "Transfers", unit: "usd", agg: "sum", better: "down",
-    description: "Freight-portal cost of shipments matched to a stock transfer (same route, picked up within 3 days of the sent date).",
-    sources: ["shipments", "transfers"], tile: false, locationAware: true,
-    dims: [{ key: "carrier", label: "Carrier" }, { key: "location", label: "From site" }],
-    refCols: [...portalCols, { key: "transfer", label: "Transfer #" }], facts: (c) => portalFacts(c, ["transfer"]),
+    id: "freight_cost_lb", name: "Freight Cost per lb", group: "Freight", unit: "usd", agg: "avg", better: "down",
+    description: `Freight-portal cost ÷ shipment weight (lb), for shipments picked up in the period. Compare carriers in the breakdown. ${GROUND_NOTE}`,
+    sources: ["shipments"], tile: false, locationAware: true,
+    dims: [{ key: "carrier", label: "Carrier" }, { key: "mode", label: "Mode" }, { key: "direction", label: "Direction" }],
+    refCols: [...portalCols, { key: "weight", label: "Weight (lb)", unit: "units" }],
+    facts: (c) => portalFacts(c, ["outbound", "inbound", "own"]).filter((f) => Number(f.ref.weight) > 0).map((f) => ({ ...f, den: Number(f.ref.weight) })),
   },
   {
-    id: "count_lines_exact", name: "Count Lines Exact", group: "Inventory", unit: "pct", agg: "ratio", better: "up",
-    description: "Share of counted lines where the counted quantity equals the quantity on record. Shown next to Inventory Accuracy because the accuracy formula nets overcounts against undercounts.",
-    sources: ["stockCounts"], tile: false, locationAware: true,
-    dims: [{ key: "location", label: "Location" }, { key: "count", label: "Stock count" }],
-    refCols: [{ key: "date", label: "Started" }, { key: "count", label: "Count #" }, { key: "product", label: "Product" }, { key: "reported", label: "Reported", unit: "units" }, { key: "counted", label: "Counted", unit: "units" }],
+    id: "count_adjustments", name: "Count Adjustments", group: "Inventory", unit: "usd", agg: "sum", better: "near0",
+    description: "Net dollar value of stock count adjustments (gains minus losses) for completed counts started in the period, from the Adjustment Value column. Negative means inventory was written down.",
+    sources: ["stockCounts"], tile: true, locationAware: true,
+    dims: [{ key: "direction", label: "Gain / loss" }, { key: "count", label: "Stock count" }, { key: "product", label: "Product" }, { key: "location", label: "Location" }],
+    refCols: [
+      { key: "date", label: "Started" }, { key: "count", label: "Count #" }, { key: "product", label: "Product" }, { key: "sku", label: "SKU" },
+      { key: "reported", label: "Reported", unit: "units" }, { key: "counted", label: "Counted", unit: "units" }, { key: "value", label: "Adjustment $", unit: "usd" },
+    ],
     facts: (c) =>
       c.ds.countLines
-        .filter((l) => l.counted !== null && l.started)
+        .filter((l) => l.counted !== null && l.started && l.adjValue)
         .map((l) => ({
-          date: l.started, num: l.counted === l.reported ? 1 : 0, den: 1, dims: { location: l.location, count: l.count },
-          ref: { date: l.started, count: l.count, product: l.product, reported: l.reported, counted: l.counted! },
+          date: l.started, num: l.adjValue, den: 1,
+          dims: { direction: l.adjValue < 0 ? "Losses" : "Gains", count: l.count, product: l.product, location: l.location },
+          ref: { date: l.started, count: l.count, product: l.product, sku: l.sku, reported: l.reported, counted: l.counted!, value: l.adjValue },
         })),
+    extras: (f) => [
+      { label: "Losses", value: sum(f.filter((x) => x.num < 0).map((x) => x.num)), unit: "usd" },
+      { label: "Gains", value: sum(f.filter((x) => x.num > 0).map((x) => x.num)), unit: "usd" },
+    ],
+  },
+  {
+    id: "dormant_inventory", name: "Dormant Inventory", group: "Inventory", unit: "usd", agg: "sum", better: "down",
+    description: "Value of stock on hand with no movement in the last 120 days: no sales of the item, no manufacturing of it, and no use as a BOM component. Value = on hand × product cost, as of the latest upload.",
+    sources: ["stockLevels", "products", "salesOrders", "mfgOrders"], tile: true, pointInTime: true, locationAware: true,
+    dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }],
+    refCols: [
+      { key: "location", label: "Location" }, { key: "product", label: "Product" }, { key: "sku", label: "SKU" }, { key: "lastCounted", label: "Last counted" },
+      { key: "qty", label: "On hand", unit: "units" }, { key: "cost", label: "Unit cost", unit: "usd" }, { key: "value", label: "Value", unit: "usd" },
+    ],
+    facts: (c) => {
+      const tx = transactionCounts(c, c.s, c.latest, c.s.dormantDays);
+      const counted = new Map<string, string>();
+      for (const l of c.ds.countLines) if (l.counted !== null && (counted.get(`${l.location}|${l.sku}`) ?? "") < l.started) counted.set(`${l.location}|${l.sku}`, l.started);
+      return c.ds.stockLevels
+        .filter((x) => x.qty > 0 && !tx.get(`${x.location}|${x.sku}`))
+        .map((x) => {
+          const p = c.product(x.sku, x.product);
+          const cost = p?.cost ?? 0;
+          return {
+            date: c.snapshotDate, num: x.qty * cost, den: 1,
+            dims: { location: x.location, category: p?.category ?? "Uncategorized", product: x.product },
+            ref: { location: x.location, product: x.product, sku: x.sku, lastCounted: counted.get(`${x.location}|${x.sku}`) ?? "Never", qty: x.qty, cost, value: x.qty * cost },
+          };
+        });
+    },
+    extras: (f) => [{ label: "SKU-locations", value: new Set(f.map((x) => `${x.ref.location}|${x.ref.sku}`)).size, unit: "count" }],
   },
   {
     id: "inventory_value", name: "Current Inventory Value", group: "Inventory", unit: "usd", agg: "sum", better: "none",

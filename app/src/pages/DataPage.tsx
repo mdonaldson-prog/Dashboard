@@ -1,6 +1,9 @@
 import { useState } from "preact/hooks";
 import type { AppApi } from "../App";
+import * as XLSX from "xlsx";
+import { cleanupSheets } from "../calc/cleanup";
 import { longDate } from "../calc/dates";
+import { KPIS } from "../calc/kpis";
 import { REPORTS, type ReportKind } from "../data/model";
 import { CARRIER_CLASS_LABEL, carrierClass, DEFAULT_SETTINGS, mergeSettings, type CarrierClass } from "../data/settings";
 import { Card, DataTable, Seg } from "../ui/components";
@@ -12,7 +15,7 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
   const { c, s } = api;
   const [msg, setMsg] = useState("");
   const loaded = new Map(c.ds.files.filter((f) => f.kind).map((f) => [f.kind!, f]));
-  const kinds = Object.keys(REPORTS) as ReportKind[];
+  const kinds = (Object.keys(REPORTS) as ReportKind[]).filter((k) => REPORTS[k].weekly || k === "bom" || loaded.has(k));
 
   // Carrier values with order counts and freight charged
   const carriers = new Map<string, { raw: string; orders: number; freight: number }>();
@@ -37,15 +40,33 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
     }
   };
 
-  const neg = c.ds.stockLevels.filter((x) => x.qty < 0);
-  const zeroCost = c.ds.stockLevels.filter((x) => x.qty > 0 && !(c.product(x.sku, x.product)?.cost));
+  const cleanup = cleanupSheets(c);
+  const downloadCleanup = () => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Sheet", "Rows", "What to fix"], ...cleanup.map((x) => [x.name, x.rows.length, x.why])]), "Summary");
+    for (const x of cleanup) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(x.rows.length ? x.rows : [{ Note: "Nothing to fix" }]), x.name.slice(0, 31));
+    XLSX.writeFile(wb, `inFlow-data-cleanup-${c.latest}.xlsx`);
+  };
+  const targetKpis = KPIS.filter((k) => k.better !== "none");
+  const setTarget = (id: string, patch: { value?: number | null; tolerancePct?: number }) =>
+    api.setS((x) => {
+      const t = { ...x.targets };
+      const cur = t[id] ?? { value: NaN, tolerancePct: 5 };
+      if (patch.value === null) delete t[id];
+      else t[id] = { ...cur, ...(patch.value !== undefined ? { value: patch.value } : {}), ...(patch.tolerancePct !== undefined ? { tolerancePct: patch.tolerancePct } : {}) };
+      return { ...x, targets: t };
+    });
+  const UNIT_HINT = { pct: "%", usd: "$", days: "days", units: "units / wk", count: "count" } as const;
 
   return (
     <>
       <Card
         title="Loaded reports"
         sub={`Loaded ${new Date(c.ds.loadedAt).toLocaleString()} · data through ${longDate(c.latest)}`}
-        actions={<button class="btn primary" onClick={api.reload}><IconUpload /> Load new files</button>}
+        actions={<div class="row">
+          {api.savedLocally && <button class="btn ghost" onClick={() => { if (confirm("Remove the saved data from this browser? You'll need to load the reports again next time.")) api.forget(); }}>Forget saved data</button>}
+          <button class="btn primary" onClick={api.reload}><IconUpload /> Load new files</button>
+        </div>}
       >
         <DataTable
           rows={kinds.map((k) => ({ k, f: loaded.get(k) }))}
@@ -87,19 +108,55 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
         />
       </Card>
 
-      <div class="grid-2-even">
-        <Card title="Negative stock" sub={`${neg.length} rows · excluded from inventory value`}>
-          <DataTable rows={neg} pageSize={10} csvName="negative-stock.csv" initialSort={{ key: "qty", dir: 1 }}
-            cols={[{ key: "location", label: "Location" }, { key: "product", label: "Product" }, { key: "sku", label: "SKU" }, { key: "qty", label: "On hand", unit: "units" }]} />
-        </Card>
-        <Card title="Stocked items with $0 cost" sub={`${zeroCost.length} rows · fill costs in inFlow so inventory value is complete`}>
-          <DataTable rows={zeroCost} pageSize={10} csvName="zero-cost-items.csv" initialSort={{ key: "qty", dir: -1 }}
-            cols={[{ key: "location", label: "Location" }, { key: "product", label: "Product" }, { key: "sku", label: "SKU" }, { key: "qty", label: "On hand", unit: "units" }]} />
-        </Card>
-      </div>
+      <Card
+        title="Targets"
+        sub="Tiles turn green (on target), amber (within tolerance) or red (off target). Leave blank for no target. Unit totals are per week."
+      >
+        <DataTable
+          rows={targetKpis}
+          pageSize={30}
+          cols={[
+            { key: "name", label: "KPI", render: (k) => <><b>{k.name}</b><div class="small muted">{k.group}</div></> },
+            { key: "better", label: "Good when", render: (k) => ({ up: "Higher", down: "Lower", near100: "Closer to 100%", near0: "Closer to $0", none: "" })[k.better] },
+            {
+              key: "target", label: "Target", num: true,
+              render: (k) => (
+                <span class="nowrap">
+                  <input class="input" style={{ width: 110, height: 30, textAlign: "right" }} inputMode="decimal" aria-label={`Target for ${k.name}`}
+                    value={s.targets[k.id] && !isNaN(s.targets[k.id].value) ? String(s.targets[k.id].value) : ""}
+                    onChange={(e) => { const v = (e.target as HTMLInputElement).value.replace(/[$,%\s]/g, ""); setTarget(k.id, { value: v === "" ? null : Number(v) }); }} />
+                  <span class="small muted" style={{ marginLeft: 6 }}>{UNIT_HINT[k.unit]}</span>
+                </span>
+              ),
+            },
+            {
+              key: "tol", label: "Amber band", num: true,
+              render: (k) => (
+                <span class="nowrap">
+                  <input class="input" style={{ width: 64, height: 30, textAlign: "right" }} inputMode="decimal" aria-label={`Amber tolerance for ${k.name}`} disabled={!s.targets[k.id]}
+                    value={String(s.targets[k.id]?.tolerancePct ?? 5)} onChange={(e) => setTarget(k.id, { tolerancePct: Number((e.target as HTMLInputElement).value) || 0 })} />
+                  <span class="small muted" style={{ marginLeft: 6 }}>% of target</span>
+                </span>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Card
+        title="Data cleanup"
+        sub="Records to fix in inFlow before the next upload"
+        actions={<button class="btn primary" onClick={downloadCleanup}><IconDownload /> Download cleanup list (.xlsx)</button>}
+      >
+        <DataTable
+          rows={cleanup.map((x) => ({ name: x.name, n: x.rows.length, why: x.why }))}
+          pageSize={10}
+          cols={[{ key: "name", label: "List" }, { key: "n", label: "Rows", unit: "count" }, { key: "why", label: "What to fix" }]}
+        />
+      </Card>
 
       <div class="grid-2-even">
-        <Card title="Locations" sub="How the freight portal names each site's city. Used to match portal shipments to stock transfers.">
+        <Card title="Locations" sub="How the freight portal names each site's city. Used to spot freight shipments between your own sites.">
           <div class="stack" style={{ gap: 10 }}>
             {Object.entries(s.locations).map(([loc, ls]) => (
               <label class="field">
@@ -123,6 +180,16 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
         </Card>
         <Card title="Calendar & settings file">
           <div class="stack" style={{ gap: 12 }}>
+            <div class="row" style={{ gap: 16 }}>
+              <label class="field">
+                Order is late after (business days)
+                <input class="input" style={{ width: 90 }} inputMode="numeric" value={String(s.lateOrderDays)} onChange={(e) => api.setS((x) => ({ ...x, lateOrderDays: Math.max(0, Number((e.target as HTMLInputElement).value) || 0) }))} />
+              </label>
+              <label class="field">
+                Dormant after (days with no movement)
+                <input class="input" style={{ width: 90 }} inputMode="numeric" value={String(s.dormantDays)} onChange={(e) => api.setS((x) => ({ ...x, dormantDays: Math.max(1, Number((e.target as HTMLInputElement).value) || 120) }))} />
+              </label>
+            </div>
             <label class="field">
               Items that ship from another location (count in Sales $, not in units). One name fragment per line.
               <textarea class="input" style={{ height: 76, padding: 8, fontFamily: "var(--mono)" }} value={s.dropShipPatterns.join("\n")}

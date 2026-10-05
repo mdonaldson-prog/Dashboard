@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.5 — working prototype built (`app/`, see §16); inventory accuracy uses completed stock counts (2 Oct 2026) |
+| **Status** | Draft v2.6 — prototype v2: targets, late orders, count adjustments, dormant inventory, carrier on-time, print summary, saved data; transfers removed (5 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -124,7 +124,7 @@ Every refresh recomputes from the files, so a fix to a formula applies to all hi
 
 | Step | Who | Time |
 |---|---|---|
-| Export the **8 weekly reports** (§5.4) into `inflow-exports/`, replacing last week's files. A checklist is on the app's Help page. | User | ~10 min |
+| Export the **7 weekly reports** (§5.4) into `inflow-exports/`, replacing last week's files. A checklist is on the app's Help page. | User | ~10 min |
 | Open `Dashboard.html` and click **Refresh** | User | ~1 min |
 | Read the import report (green = fine; amber/red explains what's wrong) | User | ~1 min |
 | Review the Attention list and next week's count schedule, then print count sheets | User | ~5 min |
@@ -199,7 +199,7 @@ Each finding comes with how the app handles it.
    - New carrier values appear on the import report to classify once.
 9. **Freight portal data.**
    - The Shipment Summary holds the freight **spent** on LTL and truckload shipments.
-   - **No sales order is ever treated as a transfer.** Transfers come only from the stock transfer report. A freight-portal shipment counts as **transfer freight** only when it matches a transfer in that report: same origin and destination site, pickup within 3 days of the transfer's sent date. The sample matched 6 of the 9 portal shipments between your cities. The other 3 stay in outbound freight and are listed on the import report as "between your sites, no transfer found".
+   - Portal shipments are classified by the portal's Direction. Outbound shipments delivered to one of your own sites (Aurora, IL; Carrollton, TX; Cypress, TX) are shown as **between your sites**. They count in Total Freight Spend but not in Freight Paid vs Spent or Freight as % of Sales, which are about customer freight. In the sample, 9 shipments ($6,580) went between your sites.
    - Only 18 of 50 shipments match a sales order by tracking number, and 5 by order number. Weekly totals don't need the match; drill-down lists unmatched shipments as "Not linked to an order".
    - 33 of 50 shipments have no actual arrival time, so carrier on-time delivery covers only some shipments.
 10. **Stock count report.**
@@ -207,11 +207,7 @@ Each finding comes with how the app handles it.
     - The saved report is filtered to completed counts only, so every count in it is complete. Counts are dated by their started date.
     - 26 lines have a blank counted quantity; they're treated as not counted.
     - 176 lines have a negative quantity on record. Under your formula these shrink the denominator (see §7.1).
-11. **Stock transfer report.**
-    - Of 381 transfers, 20 move stock **between sites**: Aurora→DFW 8, DFW→Houston 10, Houston→DFW 2. The other 361 are bin transfers within Aurora (same from and to location). These are no longer done, so **any transfer with the same from and to location is ignored** everywhere.
-    - Transfers sent but not yet received appear in the report with a blank received date (confirmed), so Transfers In Transit works.
-    - 14 inter-site transfer lines have $0 cost, so transferred value is understated for those items.
-    - Aurora→DFW transfers ($440K) have no matching freight-portal shipment, so their freight cost isn't in the portal file.
+11. **Stock transfer report: not used for now** (decision 5 Oct). Receipts are recorded when someone gets to them, not on arrival, so transit times aren't meaningful. The report is recognized if uploaded, but ignored.
 12. **Product and stock data quality.**
     - 57 product rows have no SKU, and 41 stock rows don't match a product by SKU or name. These are listed on the import report.
     - 217 stock rows with positive on-hand have a **$0 or blank cost**, so Current Inventory Value is understated until costs are filled in inFlow.
@@ -233,8 +229,8 @@ Each finding comes with how the app handles it.
 | F7 | BOM | Component use for velocity and forecasting | Received |
 | F8 | Stock Count report | Inventory Accuracy %, last-counted dates | Received |
 | F9 | Vendors | Vendor scorecards | Later phase |
-| F10 | Stock transfer report | Transfer metrics, transfer freight matching, velocity (transfers out) | Received |
-| C1 | Freight portal Shipment Summary | Freight spent (outbound, inbound, transfers), carrier on-time | Received |
+| F10 | Stock transfer report | Not used for now | Received; ignored |
+| C1 | Freight portal Shipment Summary | Freight spent (to customers, inbound, between your sites), carrier on-time, cost per lb | Received |
 | ~~C2~~ | ~~Parcel freight cost~~ | Not needed: ground shipments are excluded from transportation metrics | Dropped |
 
 ### 5.4 Weekly Upload Checklist
@@ -249,14 +245,13 @@ Every Monday (or the first workday of the week), export these into `inflow-expor
 | 4 | **Stock count report** (saved report, filtered to **completed** counts) | inFlow → Reports | Started date: last 90 days | Inventory Accuracy %, last-counted dates for the count schedule |
 | 5 | **Stock Levels** (`inFlow_StockLevels`) | inFlow → export | None (current) | Current Inventory Value, count sheets, weekly history snapshot |
 | 6 | **Product Details** (`inFlow_ProductDetails`) | inFlow → Products → Export | None (current) | Costs for inventory value, categories, new SKUs |
-| 7 | **Shipment Summary** | Freight portal | Scheduled pickup: last 90 days | Freight spent: outbound, inbound, transfers; carrier on-time |
-| 8 | **Stock transfer report** (saved report) | inFlow → Reports | Transfer date: last 90 days | Transfer metrics, transfer freight, velocity |
+| 7 | **Shipment Summary** | Freight portal | Scheduled pickup: last 90 days | Freight spent, carrier on-time delivery, cost per lb |
 
-**Monthly, or whenever BOMs change:** 9. **BOM** (`inFlow_BOM`), for component use in velocity.
+**Monthly, or whenever BOMs change:** 8. **BOM** (`inFlow_BOM`), for component use in velocity.
 
-**First upload only:** reports 1–4, 7, and 8 with **all available history**, not just 90 days.
+**First upload only:** reports 1–4 and 7 with **all available history**, not just 90 days.
 
-**Why 90 days every week:** Each upload overlaps the previous ones. The app merges by key (order # + line, MO #, count # + SKU, transfer # + SKU, shipment ID), keeping the newest version of each row and its own archive of everything older (§6.3). Late edits and backdated changes within 90 days are picked up automatically, and a missed week loses nothing. The import report flags any report whose newest date is more than 8 days old.
+**Why 90 days every week:** Each upload overlaps the previous ones. The app merges by key (order # + line, MO #, count # + SKU, shipment ID), keeping the newest version of each row and its own archive of everything older (§6.3). Late edits and backdated changes within 90 days are picked up automatically, and a missed week loses nothing. The import report flags any report whose newest date is more than 8 days old.
 
 ### 5.5 Import and Column Mapping
 
@@ -377,45 +372,48 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 
 | KPI | Definition (as shown in the app) | Reports | Status |
 |---|---|---|---|
-| Inventory Accuracy % | (Total Units Counted ÷ Total Units Reported) × 100 for last week's counts. The tile also shows Total Units Reported, Total Units Counted, and Total Variance (reported − counted), matching your weekly table. Lines with no counted quantity are skipped. | 4 | Ready |
+| Inventory Accuracy % | (Total Units Counted ÷ Total Units Reported) × 100 for last week's completed counts. The tile also shows Units Reported, Units Counted, and Variance (reported − counted), plus % of lines counted exactly. | 4 | Ready |
+| Count Adjustments | Net dollar value of count adjustments (gains − losses) for last week's completed counts, from the report's Adjustment Value column. Losses and gains are shown separately. | 4 | Ready |
+| Dormant Inventory | Value of stock on hand with no movement in **120 days** (no sales, manufacturing, or use as a BOM component). As of the latest upload. | 1 + 3 + 5 + 6 | Ready |
+| Current Inventory Value | Σ on-hand quantity × product cost, as of the latest Stock Levels upload. Negative on-hand excluded. | 5 + 6 | Ready ($0-cost caveat) |
 | Units Blended | Σ quantity on Blend orders completed last week | 3 | Ready |
 | Units Filled | Σ quantity on Fill orders completed last week | 3 | Ready |
 | Units Kitted | Σ quantity on Kit orders completed last week, including kits auto-built at sales order fulfillment (`MO-` numbers) | 3 | Ready |
 | Order Fulfillment Speed | Average business days from order date to fulfillment date, for orders fulfilled last week. **Pickup orders are excluded.** Also shows the median and % fulfilled within 1 business day. | 1 + 2 | Ready |
-| Units Sold | Σ quantity on item lines of sales orders placed last week. Quotes excluded; tax and adjustment lines aren't items. | 1 | Ready |
-| Units Shipped | Σ quantity on item lines of orders fulfilled last week | 1 + 2 | Ready |
-| Freight Paid vs Freight Spent | **Paid:** freight charged to customers on orders fulfilled last week by freight carriers or with carrier unknown. **Spent:** total cost of outbound customer shipments picked up last week in the freight portal. Shows both dollar amounts and recovery % (paid ÷ spent). *Ground shipments, inbound freight, and transfer freight are not included. Orders with no carrier are included as "Carrier unknown".* | 1 + 2 + 7 | Ready |
-| Freight as % of Sales | Outbound customer freight spent ÷ Total Sales, last week. *Ground shipments are not included.* | 1 + 7 | Ready |
-| Total Freight Spend | All freight-portal cost picked up last week: outbound to customers + inbound + transfer freight (portal shipments matched to a stock transfer), with each part shown. *Ground shipments are not included.* | 7 + 8 | Ready |
-| Stock Transfers | Inter-site transfers **sent** last week: number of transfers, units, and value at cost. Same-location (bin) transfers are ignored. | 8 | Ready |
-| Transfer Transit Time | Average business days from sent to received for inter-site transfers received last week | 8 | Ready |
-| Current Inventory Value | Σ on-hand quantity × product cost, as of the latest Stock Levels upload. Negative on-hand excluded. | 5 + 6 | Ready ($0-cost caveat, §5.2) |
+| Units Sold | Units of stocked items on orders placed last week. Excludes items that ship from another location (per-lb flake from Torginol) and non-stock items/fees. | 1 | Ready |
+| Units Shipped | Units of stocked items shipped from your sites on orders fulfilled last week (same exclusions) | 1 + 2 | Ready |
+| Late Orders | Open (unfulfilled) orders more than **3 business days** old, as of the latest data. Also shows open orders, open units, and open value, with an age breakdown. | 1 + 2 | Ready |
+| Freight Paid vs Spent | **Net $ = paid − spent.** Paid: freight charged to customers on orders fulfilled last week by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound shipments to customers. *Ground, inbound, and shipments between your sites are not included.* | 1 + 2 + 7 | Ready |
+| Freight as % of Sales | Outbound freight to customers ÷ Total Sales, last week. *Ground shipments are not included.* | 1 + 7 | Ready |
+| Total Freight Spend | All freight-portal cost: to customers + inbound + between your sites, with each part shown. *Ground shipments are not included.* | 7 | Ready |
+| Carrier On-Time Delivery | Portal shipments delivered on or before the scheduled date ÷ shipments with an actual arrival date. Only about a third of portal shipments have an arrival date today. | 7 | Ready |
 
-**Supporting metrics** (in the KPI Explorer, and available as tiles):
+**Supporting metrics** (in the KPI Explorer):
 
 | Metric | Definition |
 |---|---|
-| Total Sales | Σ item line subtotals **+ adjustment lines**, tax excluded, by order date. This is the denominator for Freight as % of Sales. |
-| Inbound Freight Spend | Freight-portal cost of inbound shipments. Standalone metric, also part of Total Freight Spend. |
-| Transfer Freight Spend | Freight-portal cost of shipments matched to a stock transfer. Also shown as freight cost per $100 of value transferred. |
-| Transfer Processing Time | Average days from transfer date (created) to sent date |
-| Transfers In Transit | Inter-site transfers sent but not yet received (blank received date): count, units, value, and days since sent |
-| Count lines exact % | Share of counted lines where counted = on record. Shown next to Inventory Accuracy %, because the accuracy formula nets overcounts against undercounts. |
+| Total Sales | All item line amounts (including drop-ship and non-stock items and fees) **+ adjustment lines**, tax excluded, by order date. The denominator for Freight as % of Sales. |
+| Inbound Freight Spend | Freight-portal cost of inbound shipments. Also part of Total Freight Spend. |
+| Freight Cost per lb | Freight-portal cost ÷ shipment weight, by carrier and mode |
 
-**Draft values from the sample files, week of Sep 21–27, 2026** (to check against what you know; not final):
+**Values from the sample files, week of Sep 21–27, 2026:**
 
-| KPI | Draft value |
+| KPI | Value |
 |---|---|
-| Inventory Accuracy % | **98.3%**: 14,165 counted ÷ 14,410 reported, variance 245 (completed counts started Sep 21–27) |
+| Inventory Accuracy % | 98.3% (14,165 counted ÷ 14,410 reported, variance 245; 27% of lines exact) |
+| Count Adjustments | −$23,185 net (losses −$137,407, gains $114,222) |
+| Dormant Inventory | $597K across 412 SKU-locations |
+| Current Inventory Value | $3.13M, understated by $0-cost items |
 | Units Blended / Filled / Kitted | 7,676 / 4,495 / 1,385 (992 manual + 393 auto-built) |
-| Units Sold | 13,988 |
-| Total Sales | $509,442 ($500,694 items + $8,748 adjustments; $19,357 tax excluded) |
-| Order Fulfillment Speed | 1.6 business days on average (median 1), 156 non-pickup orders, 90% within 1 business day |
-| Freight spent (portal) | $6,099 outbound (8 shipments), $1,338 inbound |
-| Stock Transfers | 2 inter-site transfers sent, 815 units, $69,256 at cost; average 1.5 days in transit |
-| Current Inventory Value | $3.13M (Aurora $2.59M, DFW $366K, Houston $175K), understated by $0-cost items |
+| Units Sold / Shipped | 3,627 / 2,809 |
+| Late Orders | 87 of 120 open orders (45 open more than 30 business days); $257K open value |
+| Order Fulfillment Speed | 1.6 business days on average (median 1), 90% within 1 business day |
+| Freight Paid vs Spent | +$5,165 net (paid $9,128, spent $3,963) |
+| Freight as % of Sales | 0.8% |
+| Total Freight Spend | $7,437 (customers $3,963, inbound $1,338, between sites $2,136) |
+| Carrier On-Time Delivery | No deliveries recorded that week; 15 of 17 on time across all data |
 
-More KPIs can be added later as definitions in the same format. Candidates the data supports: inventory turns, stockout rate, count schedule completion, gross margin, backlog, and production by product family.
+**Targets.** Each KPI can have a target and an amber tolerance (in % of the target) on the Data & settings page. Tiles show green (on target), amber (within tolerance), or red (off target) with an icon and label, and the KPI chart draws the target line.
 
 **Calculation rules**
 
@@ -444,8 +442,8 @@ Clicking any tile, or opening **KPIs** in the menu, opens the KPI Explorer, whic
   - **Production units:** by type (blended, filled, kitted manual, kitted auto-built), product category, and product.
   - **Units sold, units shipped, and sales:** by product category, product, customer, and location.
   - **Fulfillment speed:** by location, carrier class, and days-to-fulfill buckets (0, 1, 2, 3–5, 6+).
-  - **Freight:** by direction (outbound, inbound, transfer), carrier, mode (LTL, truckload), and origin location.
-  - **Transfers:** by lane (from → to), product category, and product. Transit and processing time trends, and transfers currently in transit.
+  - **Freight:** by direction (to customers, inbound, between your sites), carrier, mode (LTL, truckload), and origin location.
+  - **Late orders:** by age, location, and customer.
   - **Inventory accuracy:** by location, count, velocity class, and SKU, with the biggest variances first.
   - **Inventory value:** by location and category.
 - **Production vs demand view:** units blended, filled, and kitted as stacked bars, with units sold and shipped as lines on the same chart.
@@ -482,7 +480,7 @@ The dashboard plans counts. Counting and recording happen in inFlow's Stock Coun
 
 **Velocity classification** (every refresh)
 
-1. For each SKU × location, count **transactions** over the last 90 days: sales order lines, manufacturing order lines, component use worked out from the BOM, and inter-site stock transfer lines in or out (bin transfers ignored). Receipts aren't included unless the optional movement history export (F3) is added.
+1. For each SKU × location, count **transactions** over the last 90 days: sales order lines, manufacturing order lines, component use worked out from the BOM, (stock transfers are not used). Receipts aren't included unless the optional movement history export (F3) is added.
 2. Rank SKUs from most to least transactions and classify them by cumulative share:
 
    | Class | Default rule | Cadence | Placement window |
@@ -647,7 +645,7 @@ Dashboard.html
 │   ├── <ReconciliationTotals>        compare with inFlow
 │   ├── <ColumnMappingEditor>
 │   ├── <CarrierClassEditor>          ground / freight / not shipped / unknown; unclassified values highlighted
-│   ├── <OwnLocationsEditor>          site names used to spot transfer shipments
+│   ├── <OwnLocationsEditor>          site city names used to spot shipments between your sites
 │   ├── <MoTypeRulesEditor>           prefixes, typo variants, unclassified orders
 │   └── <CarrierMappingEditor>
 │
@@ -868,46 +866,12 @@ All required files are in hand and all definitions are settled. A working protot
 Helpful, not blocking:
 
 - Make Shipping Carrier required on sales orders in inFlow, so "Carrier unknown" shrinks over time.
-- Fill in costs for the 217 stocked items and 14 inter-site transfer lines with $0 or blank cost.
+- Work through the data cleanup list (Data page → Download cleanup list): 57 products without SKU, 190 stocked items with $0 cost, 41 stock rows not in products, 156 negative on-hand rows, 63 sold items not in products.
+- Set targets for the KPIs (Data page → Targets).
+- Review the 45 orders open more than 30 business days. Many may be stale and should be closed or cancelled in inFlow.
 - Older history, if inFlow has data before February 2026.
 
 ---
-
-## 16. Prototype
-
-A working prototype is in `app/`, built as the single self-contained HTML file described in §4. `release/Dashboard.html` is the ready-to-use file; it contains no data. Open it in Edge or Chrome and drop in the weekly reports.
-
-**Built**
-
-- **Import:** drag-and-drop, file picker, or folder picker. Each report is recognized by its columns, with a validation report and warnings.
-- **Overview:** all executive KPI tiles for the selected week and location, with change from the prior week, a 13-week sparkline, and supporting figures. Also a production vs demand chart and the Attention list.
-- **KPI Explorer:** every KPI plus supporting metrics.
-  - 13, 26, or 52-week or full range, by week or month, with a 4-period average.
-  - Click a period to focus on it.
-  - Breakdowns by dimension, with click-to-filter.
-  - Compare up to 3 KPIs on an indexed chart.
-  - Record-level drill-down with CSV export.
-- **Cycle counts:** velocity classes per location, capacity check with ways to close the gap, live settings (capacity, Fast cutoff, cadences), and a 13-week calendar.
-  - A day list in walk order, with a printable blind count sheet and CSV.
-  - Class overrides.
-  - "Counting active" switch per location.
-- **Data & settings:** report status, carrier classes (editable), negative stock and $0-cost items, location mapping, holidays, and settings export/import.
-- Light and dark themes, a desktop sidebar or mobile bottom navigation, and responsive tables and charts.
-
-**Not yet built (later phases):** month close and adjustment notes (§7.2), forecasting and reorder suggestions (§7.4), and vendor and carrier scorecards (§7.5–7.6).
-
-**Prototype simplifications**
-
-- Settings are saved in the browser, with export/import to a JSON file, rather than in `dashboard-data/state.json` in the shared folder.
-- Loaded reports aren't remembered between sessions: load them again each time, or use "Open folder".
-- The 90-day merge archive (§6.3) isn't built yet, so each upload should cover the full history you want to see.
-- The rule that delays a SKU moving to a slower velocity class until two weekly refreshes agree (§7.3) isn't applied yet.
-
-**Developer commands** (in `app/`):
-- `npm install`
-- `npm run build`: builds `dist/index.html`.
-- `npm run verify -- <exports folder>`: prints last week's KPIs and the count plan.
-- `npm run demo-data -- <folder> && DEMO=1 npx vite build --outDir dist-demo`: builds a copy with sample data embedded. It isn't committed, because it contains business data.
 
 ## 15. Glossary
 
@@ -924,3 +888,52 @@ A working prototype is in `app/`, built as the single self-contained HTML file d
 | **Reorder point** | Stock level that should trigger a new order |
 | **Safety stock** | Extra stock held to cover demand and lead-time variation |
 | **State file** | `state.json`: settings, notes, overrides, locks, and published schedules |
+
+---
+
+## 16. Prototype
+
+A working prototype is in `app/`, built as the single self-contained HTML file described in §4. `release/Dashboard.html` is the ready-to-use file; it contains no data. Open it in Edge or Chrome and drop in the weekly reports. After the first load it reopens with the last upload, which is saved in that browser.
+
+**Built**
+
+- **Import:** drag-and-drop, file picker, or folder picker. Each report is recognized by its columns, with a validation report and warnings. The last upload is saved in the browser (IndexedDB), with a "Forget saved data" option.
+- **Overview:** KPI tiles grouped into Inventory, Production, Sales & fulfillment, and Freight.
+  - Each tile shows the week's value, change from the prior week, a 13-week sparkline, and supporting figures.
+  - Red/amber/green target status, and an ⓘ with the definition.
+  - A production vs demand chart and the Attention list.
+  - **Print summary:** a one-page tile summary plus a chart and Attention page, sized for Letter.
+- **KPI Explorer:** every KPI plus supporting metrics.
+  - 13, 26, or 52-week or full range, by week or month, with a 4-period average and the target line.
+  - Click a period to focus on it.
+  - Breakdowns by dimension, with click-to-filter.
+  - Record-level drill-down with CSV export.
+- **Cycle counts:** velocity classes per location and a capacity check (holiday-aware) with ways to close the gap.
+  - Live settings: capacity (default 65/day), Fast cutoff, cadences.
+  - A 13-week Tuesday–Friday calendar, with a day list in walk order, a printable blind count sheet, and CSV.
+  - Class overrides and a "counting active" switch per location.
+- **Data & settings:**
+  - Report status and carrier classes.
+  - **Targets**.
+  - **Data cleanup list** (.xlsx download).
+  - Late-order and dormant-day settings, drop-ship item patterns, location mapping, and holidays.
+  - Settings export/import.
+- Light and dark themes, a desktop sidebar or mobile bottom navigation, and responsive tables and charts.
+
+**Removed (5 Oct):** stock transfer KPIs and data, the Compare chart, the Count Lines Exact KPI (now a figure on Inventory Accuracy), the Transfer Transit tile, recovery % (replaced by net $), and the sidebar theme switch.
+
+**Not yet built (later phases):** month close and adjustment notes (§7.2), forecasting and reorder suggestions (§7.4), and vendor and carrier scorecards (§7.5–7.6).
+
+**Prototype simplifications**
+
+- Settings are saved in the browser, with export/import to a JSON file, rather than in `dashboard-data/state.json` in the shared folder.
+- The 90-day merge archive (§6.3) isn't built yet, so each upload should cover the full history you want to see.
+- The rule that delays a SKU moving to a slower velocity class until two weekly refreshes agree (§7.3) isn't applied yet.
+- Late Orders and Dormant Inventory are as of the latest upload. Their history starts building once uploads are saved weekly.
+
+**Developer commands** (in `app/`):
+- `npm install`
+- `npm run build`: builds `dist/index.html` (copy it to `release/Dashboard.html`).
+- `npm run verify -- <exports folder>`: prints last week's KPIs and the count plan.
+- `npm run cleanup -- <exports folder> <out.xlsx>`: writes the data cleanup workbook.
+- `npm run demo-data -- <folder> && DEMO=1 npx vite build --outDir dist-demo`: builds a copy with sample data embedded. It isn't committed, because it contains business data.

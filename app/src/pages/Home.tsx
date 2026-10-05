@@ -2,11 +2,12 @@ import type { ComponentChildren } from "preact";
 import type { AppApi } from "../App";
 import { addDays, longDate, shortDate, weekLabel } from "../calc/dates";
 import { factsIn, KPIS, series, type KpiDef } from "../calc/kpis";
+import { STATUS_LABEL, targetStatus } from "../calc/targets";
 import { REPORTS, type ReportKind } from "../data/model";
 import { ProductionChart } from "../ui/charts";
 import { Card, Delta, Sparkline } from "../ui/components";
 import { compact, full } from "../ui/format";
-import { IconAlert, IconInfo } from "../ui/icons";
+import { IconAlert, IconCheck, IconInfo, IconPrint } from "../ui/icons";
 
 function Tile(props: { api: AppApi; def: KpiDef }) {
   const { api, def } = props;
@@ -40,10 +41,21 @@ function Tile(props: { api: AppApi; def: KpiDef }) {
     note = value == null ? "No data for this week" : partial ? "Partial week" : "";
   }
   const extras = def.extras && value != null ? def.extras(periodFacts) : [];
+  const target = api.s.targets[def.id];
+  const status = targetStatus(def, value, target);
   return (
-    <button class="tile" onClick={() => api.go(`kpi/${def.id}`)} aria-label={`${def.name}: ${value == null ? "no data" : full(value, def.unit)}. Open details.`}>
-      <div class="tile-label">{def.name}</div>
+    <button class={`tile ${status ? `tile-${status}` : ""}`} onClick={() => api.go(`kpi/${def.id}`)} aria-label={`${def.name}: ${value == null ? "no data" : full(value, def.unit)}${status ? `, ${STATUS_LABEL[status]}` : ""}. Open details.`}>
+      <div class="tile-label">
+        <span>{def.name}</span>
+        <span class="tile-info" title={def.description} aria-hidden="true"><IconInfo /></span>
+      </div>
       <div class="tile-value">{value == null ? "—" : compact(value, def.unit)}</div>
+      {target && (
+        <div class={`tile-target ${status ?? ""}`}>
+          {status && <span class={`status-dot ${status}`}>{status === "good" ? <IconCheck /> : <IconAlert />}</span>}
+          {status ? STATUS_LABEL[status] : "Target"} · target {compact(target.value, def.unit)}
+        </div>
+      )}
       {!def.pointInTime && <Delta cur={value} prev={prev} unit={def.unit} better={def.better} vs="vs prior wk" />}
       {extras.length > 0 && (
         <div class="tile-extras">
@@ -79,9 +91,14 @@ function attention(api: AppApi): Attn[] {
     const f = p.withinCadence.fast;
     if (f.total && f.ok < f.total) out.push({ level: "warn", title: `${p.location}: ${f.total - f.ok} fast movers overdue`, text: `Not counted within the last week (${f.ok} of ${f.total} are current).`, to: "counts" });
   }
-  const inTransit = c.transfers.filter((t) => t.sent && !t.received);
-  if (inTransit.length) {
-    out.push({ level: "info", title: `${inTransit.length} transfer${inTransit.length > 1 ? "s" : ""} in transit`, text: inTransit.slice(0, 3).map((t) => `${t.transfer} (${t.lane}, ${compact(t.value, "usd")})`).join(" · "), to: "kpi/stock_transfers" });
+  const late = KPIS.find((k) => k.id === "late_orders")!;
+  if (c.coverage.salesOrders && c.coverage.shipped) {
+    const open = api.facts(late, true);
+    const lateOnes = open.filter((f) => f.num);
+    if (lateOnes.length) {
+      const oldest = Math.max(...lateOnes.map((f) => Number(f.ref.age)));
+      out.push({ level: "bad", title: `${lateOnes.length} late order${lateOnes.length > 1 ? "s" : ""}`, text: `Open more than ${api.s.lateOrderDays} business days. Oldest: ${oldest} business days. ${compact(lateOnes.reduce((a, f) => a + Number(f.ref.value), 0), "usd")} waiting to ship.`, to: "kpi/late_orders" });
+    }
   }
   const neg = c.ds.stockLevels.filter((x) => x.qty < 0).length;
   if (neg) out.push({ level: "warn", title: `${neg} stock rows are negative`, text: "Good candidates for a count. Excluded from inventory value.", to: "data" });
@@ -90,19 +107,38 @@ function attention(api: AppApi): Attn[] {
   if (c.unclassifiedCarriers.length) out.push({ level: "warn", title: `${c.unclassifiedCarriers.length} new carrier value${c.unclassifiedCarriers.length > 1 ? "s" : ""}`, text: `Classify as ground or freight: ${c.unclassifiedCarriers.slice(0, 4).join(", ")}`, to: "data" });
   const otherMo = c.ds.mfgOrders.filter((m) => m.type === "other").length;
   if (otherMo) out.push({ level: "info", title: `${otherMo} manufacturing orders unclassified`, text: "No Blend/Fill/Kit prefix, so they're not in any production KPI.", to: "data" });
-  const ownNoMatch = c.shipments.filter((s) => s.ownSites && !s.transfer).length;
-  if (ownNoMatch) out.push({ level: "info", title: `${ownNoMatch} portal shipments between your sites`, text: "No matching stock transfer, so they're counted as outbound freight.", to: "kpi/total_freight" });
   return out;
 }
 
+const SECTIONS = ["Inventory", "Production", "Sales & fulfillment", "Freight"] as const;
+
 export function Home(props: { api: AppApi }) {
   const { api } = props;
-  const tiles = KPIS.filter((k) => k.tile);
   const items = attention(api);
   return (
     <>
-      <div class="tiles">{tiles.map((d) => <Tile api={api} def={d} />)}</div>
-      <div class="grid-2">
+      <div class="print-only print-header">
+        <h1>Operations summary · week of {weekLabel(api.week)}</h1>
+        <div class="meta">
+          <span>{api.loc === "All" ? "All locations" : api.loc} · data through {longDate(api.c.latest)}</span>
+          <span>Printed {longDate(new Date().toISOString().slice(0, 10))}</span>
+        </div>
+      </div>
+      <div class="row no-print">
+        <span class="small muted">Click any tile for trends, breakdowns and the records behind it. Hover the ⓘ for its definition.</span>
+        <div class="spacer" />
+        <button class="btn" onClick={() => window.print()}><IconPrint /> Print summary</button>
+      </div>
+      {SECTIONS.map((g) => {
+        const tiles = KPIS.filter((k) => k.tile && k.group === g);
+        return tiles.length ? (
+          <section class="tile-section">
+            <h2 class="section-title">{g}</h2>
+            <div class="tiles">{tiles.map((d) => <Tile api={api} def={d} />)}</div>
+          </section>
+        ) : null;
+      })}
+      <div class="grid-2 summary-bottom">
         <Card title="Production vs demand" sub={`Units by week, 13 weeks to ${weekLabel(api.week)} · all locations`}>
           <ProductionChart c={api.c} facts={(d) => api.facts(d, true)} from={addDays(api.week, -7 * 12)} to={addDays(api.week, 6)} grain="week" onSelect={(k) => { api.setWeek(k); }} />
         </Card>
@@ -114,7 +150,7 @@ export function Home(props: { api: AppApi }) {
                 <div style={{ minWidth: 0 }}>
                   <div class="attn-title">{a.title}</div>
                   <div class="attn-text">{a.text}</div>
-                  {a.to && <a class="small" href={`#/${a.to}`}>Review →</a>}
+                  {a.to && <a class="small no-print" href={`#/${a.to}`}>Review →</a>}
                 </div>
               </div>
             ))}

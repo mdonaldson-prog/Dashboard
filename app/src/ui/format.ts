@@ -14,6 +14,7 @@ export function compact(v: number, unit: Unit): string {
   const sign = v < 0 ? "−" : "";
   if (a >= 1e6) return `${sign}${pre}${(a / 1e6).toFixed(a >= 1e7 ? 1 : 2)}M`;
   if (a >= 1e4) return `${sign}${pre}${(a / 1e3).toFixed(1)}K`;
+  if (unit === "usd" && a < 10 && a > 0) return `${sign}$${a.toFixed(2)}`;
   return unit === "usd" ? usd0.format(v) : nf0.format(v);
 }
 

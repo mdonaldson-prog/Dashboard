@@ -20,7 +20,7 @@ export const REPORTS: Record<ReportKind, { label: string; weekly: boolean; dated
   stockLevels: { label: "Stock Levels", weekly: true, dated: false },
   products: { label: "Product Details", weekly: true, dated: false },
   shipments: { label: "Shipment Summary (freight portal)", weekly: true, dated: true },
-  transfers: { label: "Stock transfer report", weekly: true, dated: true },
+  transfers: { label: "Stock transfer report (not used)", weekly: false, dated: false },
   bom: { label: "BOM (monthly)", weekly: false, dated: false },
 };
 
@@ -76,6 +76,7 @@ export interface CountLine {
   started: string;
   reported: number;
   counted: number | null; // null = not counted
+  adjValue: number; // $ value of the count adjustment (negative = loss)
 }
 
 export interface StockLevel {
@@ -94,6 +95,7 @@ export interface Product {
   cost: number;
   autoManufacture: boolean;
   isActive: boolean;
+  hasSku: boolean; // false when the SKU was blank (the name is used as the key)
 }
 
 export interface BomLine {

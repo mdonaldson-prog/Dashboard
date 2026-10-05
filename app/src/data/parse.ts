@@ -171,6 +171,7 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
         out.push({
           count: s(r, "Stock Count #"), location: s(r, "Location"), sublocation: s(r, "Sublocation"), sku: s(r, "SKU"),
           product: s(r, "ProductName"), started, reported: num0(r["Snapshot Quantity"]), counted: isNaN(c) ? null : c,
+          adjValue: num0(r["Adjustment Value"]),
         });
       }
       data.countLines = out;
@@ -194,7 +195,7 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
         if (!sku) noSku++;
         out.push({
           sku: sku || s(r, "ProductName"), name: s(r, "ProductName"), category: s(r, "Category") || "Uncategorized",
-          itemType: s(r, "ItemType"), cost: num0(r["Cost"]), autoManufacture: bool(r["AutoManufacture"]), isActive: r["IsActive"] == null || bool(r["IsActive"]),
+          itemType: s(r, "ItemType"), cost: num0(r["Cost"]), autoManufacture: bool(r["AutoManufacture"]), isActive: r["IsActive"] == null || bool(r["IsActive"]), hasSku: !!sku,
         });
       }
       data.products = out;

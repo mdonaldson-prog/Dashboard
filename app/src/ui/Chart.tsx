@@ -77,6 +77,7 @@ export function Chart(props: {
   label: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
+  const img = useRef<HTMLImageElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const clickRef = useRef(props.onClick);
   clickRef.current = props.onClick;
@@ -87,9 +88,15 @@ export function Chart(props: {
     const c = echarts.init(el.current!, undefined, { renderer: "canvas" });
     chart.current = c;
     c.on("click", (p: any) => clickRef.current?.({ dataIndex: p.dataIndex, seriesIndex: p.seriesIndex, name: p.name }));
-    const ro = new ResizeObserver(() => c.resize());
+    const ro = new ResizeObserver(() => { if (el.current?.clientWidth) c.resize(); }); // ignore while hidden (print)
     ro.observe(el.current!);
     const render = () => c.setOption(buildRef.current(tokens()), true);
+    // Re-fit to the page when printing (the print layout is narrower than the screen)
+    // Canvas prints at its screen size, so print uses a full-width image snapshot instead
+    const refit = () => {
+      if (img.current && el.current?.clientWidth) img.current.src = c.getDataURL({ pixelRatio: 2, backgroundColor: tokens().surface });
+    };
+    window.addEventListener("beforeprint", refit);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const mo = new MutationObserver(render);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -98,6 +105,7 @@ export function Chart(props: {
       ro.disconnect();
       mo.disconnect();
       mq.removeEventListener("change", render);
+      window.removeEventListener("beforeprint", refit);
       c.dispose();
     };
   }, []);
@@ -106,5 +114,10 @@ export function Chart(props: {
     chart.current?.setOption(props.build(tokens()), true);
   }, props.deps);
 
-  return <div ref={el} class={`chart ${props.class ?? ""}`} role="img" aria-label={props.label} />;
+  return (
+    <div class="chart-wrap">
+      <div ref={el} class={`chart ${props.class ?? ""}`} role="img" aria-label={props.label} />
+      <img ref={img} class="print-img" alt={props.label} />
+    </div>
+  );
 }

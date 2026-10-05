@@ -53,9 +53,10 @@ export interface LocationPlan {
 
 const isCountable = (itemType: string | undefined) => !itemType || /^stocked/i.test(itemType);
 
-/** Transactions per SKU × location over the lookback window. */
-function transactionCounts(c: Ctx, s: Settings, end: string) {
-  const start = addDays(end, -s.counts.lookbackDays);
+/** Transactions per SKU × location over a window ending at `end`: stocked sales lines,
+ *  manufacturing output, and BOM components consumed by manufacturing. Key: `${location}|${sku}`. */
+export function transactionCounts(c: Ctx, s: Settings, end: string, days = s.counts.lookbackDays) {
+  const start = addDays(end, -days);
   const tx = new Map<string, number>();
   const add = (loc: string, sku: string, n = 1) => {
     if (!loc || !sku) return;
@@ -65,7 +66,7 @@ function transactionCounts(c: Ctx, s: Settings, end: string) {
   const inWin = (d: string) => d > start && d <= end;
   for (const o of c.orders.values()) {
     if (o.isQuote || o.cancelled || !inWin(o.orderDate)) continue;
-    const loc = o.location === "Unassigned" ? s.unassignedSalesLocation : o.location;
+    const loc = o.location;
     for (const l of c.linesByOrder.get(o.order) ?? []) if (l.kind === "item" && c.lineClass(l, o) === "stock") add(loc, l.sku);
   }
   const bomBy = new Map<string, string[]>();
@@ -78,12 +79,6 @@ function transactionCounts(c: Ctx, s: Settings, end: string) {
     if (!inWin(m.completedDate)) continue;
     add(s.mfgLocation, m.sku);
     for (const comp of bomBy.get(m.sku) ?? []) add(s.mfgLocation, comp);
-  }
-  for (const t of c.ds.transfers) {
-    const d = t.sent || t.transferDate;
-    if (!inWin(d)) continue;
-    add(t.from, t.sku);
-    add(t.to, t.sku);
   }
   return tx;
 }
@@ -153,8 +148,11 @@ export function classify(c: Ctx, s: Settings, fastCutoff = s.counts.fastCutoff) 
   }
 }
 
-const requiredPerDay = (counts: Record<VelocityClass, number>, s: Settings) =>
-  CLASSES.reduce((a, k) => a + counts[k] / (s.counts.cadenceWeeks[k] * s.counts.workingDays.length), 0);
+/** Average SKUs per counting day needed to keep every class on cadence, over the actual
+ *  counting days in the horizon (holidays and blackouts reduce the days available). */
+const requiredPerDay = (counts: Record<VelocityClass, number>, s: Settings, countingDays: number) =>
+  CLASSES.reduce((a, k) => a + counts[k] / (s.counts.cadenceWeeks[k] * s.counts.workingDays.length), 0) *
+  ((s.counts.horizonWeeks * s.counts.workingDays.length) / Math.max(countingDays, 1));
 
 const countBy = (list: SkuVelocity[]) => {
   const r = { fast: 0, medium: 0, slow: 0, dormant: 0 } as Record<VelocityClass, number>;
@@ -240,11 +238,11 @@ export function planCounts(c: Ctx, s: Settings): LocationPlan[] {
       capacity: ls.capacityPerDay,
       skus,
       classCounts,
-      requiredPerDay: requiredPerDay(classCounts, s),
+      requiredPerDay: requiredPerDay(classCounts, s, days.length),
       levers: [
-        { label: "Fast = top 70% of transactions", perDay: requiredPerDay(altCounts, s) },
-        { label: "Slow counted every 8 weeks", perDay: requiredPerDay(classCounts, slow8) },
-        { label: "Both of the above", perDay: requiredPerDay(altCounts, slow8) },
+        { label: "Fast = top 70% of transactions", perDay: requiredPerDay(altCounts, s, days.length) },
+        { label: "Slow counted every 8 weeks", perDay: requiredPerDay(classCounts, slow8, days.length) },
+        { label: "Both of the above", perDay: requiredPerDay(altCounts, slow8, days.length) },
       ],
       days,
       byDay,

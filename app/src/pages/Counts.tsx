@@ -180,7 +180,7 @@ export function Counts(props: { api: AppApi }) {
           </div>
         </Card>
 
-        <Card title="Velocity classes" sub={`Transactions in the last ${s.counts.lookbackDays} days: sales lines, manufacturing, BOM components and inter-site transfers. Override a class to pin a SKU.`}>
+        <Card title="Velocity classes" sub={`Transactions in the last ${s.counts.lookbackDays} days: stocked sales lines, manufacturing, and BOM components. Override a class to pin a SKU.`}>
           <div class="row" style={{ marginBottom: 10 }}>
             <input class="input" placeholder="Search SKU or product" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} style={{ flex: "1 1 220px" }} />
             <Seg label="Class" value={clsFilter} onChange={setClsFilter} options={[{ value: "all", label: "All" }, ...CLASSES.map((k) => ({ value: k, label: CLASS_LABEL[k] }))]} />

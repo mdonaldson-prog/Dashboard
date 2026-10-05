@@ -37,7 +37,8 @@ export function Seg<T extends string | number>(props: { value: T; options: { val
 /** Direction-aware change indicator: icon + signed value + comparison label, colored good/bad. */
 export function Delta(props: { cur: number | null; prev: number | null; unit: Unit; better: Better; vs: string }) {
   const { cur, prev, unit, better } = props;
-  if (cur == null || prev == null || isNaN(cur) || isNaN(prev)) return <span class="tile-delta delta-flat">No prior data</span>;
+  if (cur == null || isNaN(cur)) return null;
+  if (prev == null || isNaN(prev)) return <span class="tile-delta delta-flat">No prior week to compare</span>;
   const diff = cur - prev;
   const pctPts = unit === "pct" || unit === "days";
   const rel = prev !== 0 ? (diff / Math.abs(prev)) * 100 : NaN;
@@ -47,6 +48,7 @@ export function Delta(props: { cur: number | null; prev: number | null; unit: Un
   else if (better === "up") good = diff > 0;
   else if (better === "down") good = diff < 0;
   else if (better === "near100") good = Math.abs(cur - 100) < Math.abs(prev - 100);
+  else if (better === "near0") good = Math.abs(cur) < Math.abs(prev);
   const cls = good == null ? "delta-flat" : good ? "delta-good" : "delta-bad";
   return (
     <span class={`tile-delta ${cls}`}>

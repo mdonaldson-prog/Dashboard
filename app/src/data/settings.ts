@@ -12,8 +12,14 @@ export interface LocationSettings {
   portalCity: string; // how the freight portal names this site's city
 }
 
+export interface Target {
+  value: number;
+  /** How far off target (in % of the target) still counts as amber. */
+  tolerancePct: number;
+}
+
 export interface Settings {
-  version: 1;
+  version: 2;
   carrierOverrides: Record<string, CarrierClass>; // lower-cased inFlow value → class
   locations: Record<string, LocationSettings>;
   unassignedSalesLocation: string; // where sales lines with no location count for velocity
@@ -34,16 +40,21 @@ export interface Settings {
   dropShipPatterns: string[];
   /** Sales-order locations that are not your own sites. */
   dropShipLocations: string[];
-  transferMatchDays: number;
+  /** KPI id → target. KPIs without a target show no status. */
+  targets: Record<string, Target>;
+  /** Business days after which an unfulfilled order counts as late. */
+  lateOrderDays: number;
+  /** No movement for this many days = dormant inventory. */
+  dormantDays: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1,
+  version: 2,
   carrierOverrides: {},
   locations: {
-    Aurora: { countingActive: true, capacityPerDay: 60, portalCity: "Aurora, IL" },
-    DFW: { countingActive: false, capacityPerDay: 50, portalCity: "Carrollton, TX" },
-    Houston: { countingActive: false, capacityPerDay: 50, portalCity: "Cypress, TX" },
+    Aurora: { countingActive: true, capacityPerDay: 65, portalCity: "Aurora, IL" },
+    DFW: { countingActive: false, capacityPerDay: 65, portalCity: "Carrollton, TX" },
+    Houston: { countingActive: false, capacityPerDay: 65, portalCity: "Cypress, TX" },
   },
   unassignedSalesLocation: "Aurora",
   mfgLocation: "Aurora",
@@ -61,7 +72,9 @@ export const DEFAULT_SETTINGS: Settings = {
   velocityOverrides: {},
   dropShipPatterns: ["per lb", "by lb", "ships from torginol"],
   dropShipLocations: ["Torginol"],
-  transferMatchDays: 3,
+  targets: {},
+  lateOrderDays: 3,
+  dormantDays: 120,
 };
 
 const GROUND = ["ups", "fedex ground", "fedex home", "fedex 2-day", "fedex 2 day", "fedex priority overnight", "fedex overnight", "fedex standard overnight", "fedex express saver"];
@@ -115,9 +128,16 @@ export function saveSettings(s: Settings) {
 /** Fill in any settings added in newer versions, so older saved files keep working. */
 export function mergeSettings(saved: Partial<Settings>): Settings {
   const d = structuredClone(DEFAULT_SETTINGS);
+  const savedVersion = saved.version as number | undefined;
+  // v1 → v2: counting capacity raised to 65 SKUs/day at every site
+  if (savedVersion === 1 && saved.locations) {
+    for (const ls of Object.values(saved.locations)) ls.capacityPerDay = Math.max(ls.capacityPerDay, 65);
+  }
   return {
     ...d,
     ...saved,
+    version: 2,
+    targets: { ...(saved.targets ?? {}) },
     locations: { ...d.locations, ...(saved.locations ?? {}) },
     counts: { ...d.counts, ...(saved.counts ?? {}) },
     carrierOverrides: { ...(saved.carrierOverrides ?? {}) },

@@ -5,12 +5,13 @@ import { addDays, longDate, weekLabel } from "./calc/dates";
 import { filterLoc, KPI_BY_ID, type Fact, type KpiDef } from "./calc/kpis";
 import type { Dataset } from "./data/model";
 import { loadSettings, saveSettings, type Settings } from "./data/settings";
+import { forgetDataset, loadDataset, saveDataset } from "./data/store";
 import { Counts } from "./pages/Counts";
 import { DataPage } from "./pages/DataPage";
 import { Explorer } from "./pages/Explorer";
 import { Home } from "./pages/Home";
 import { Welcome } from "./pages/Welcome";
-import { IconChart, IconClipboard, IconDatabase, IconHome, IconMoon, IconSun } from "./ui/icons";
+import { IconChart, IconClipboard, IconDatabase, IconHome } from "./ui/icons";
 
 export interface AppApi {
   c: Ctx;
@@ -24,12 +25,16 @@ export interface AppApi {
   plans: LocationPlan[];
   go: (route: string) => void;
   reload: () => void;
+  forget: () => Promise<void>;
+  savedLocally: boolean;
 }
 
 const parseRoute = () => (location.hash.replace(/^#\/?/, "") || "home").split("/");
 
 export function App(props: { demo: Dataset | null }) {
   const [ds, setDs] = useState<Dataset | null>(props.demo);
+  const [restoring, setRestoring] = useState(!props.demo);
+  const [savedLocally, setSavedLocally] = useState(false);
   const [s, setSRaw] = useState<Settings>(loadSettings);
   const [route, setRoute] = useState(parseRoute);
   const [loc, setLoc] = useState("All");
@@ -38,6 +43,14 @@ export function App(props: { demo: Dataset | null }) {
     try { return localStorage.getItem("execdash.theme") ?? "auto"; } catch { return "auto"; }
   });
 
+  // Reopen with the last upload saved in this browser
+  useEffect(() => {
+    if (props.demo) return;
+    loadDataset().then((d) => {
+      if (d) { setDs(d); setSavedLocally(true); }
+      setRestoring(false);
+    });
+  }, []);
   useEffect(() => {
     const on = () => setRoute(parseRoute());
     window.addEventListener("hashchange", on);
@@ -60,7 +73,19 @@ export function App(props: { demo: Dataset | null }) {
   const factCache = useMemo(() => new Map<string, Fact[]>(), [c]);
   const plans = useMemo(() => (c ? planCounts(c, s) : []), [c]);
 
-  if (!ds || !c) return <Welcome demo={props.demo} onLoaded={(d) => { setDs(d); setWeek(""); location.hash = "#/home"; }} />;
+  if (restoring) return <div class="welcome"><span class="muted">Opening saved data…</span></div>;
+  if (!ds || !c)
+    return (
+      <Welcome
+        demo={props.demo}
+        onLoaded={(d) => {
+          setDs(d);
+          setWeek("");
+          location.hash = "#/home";
+          if (d !== props.demo) saveDataset(d).then(setSavedLocally);
+        }}
+      />
+    );
 
   const weeks: string[] = [];
   const firstWeek = c.coverage.salesOrders?.min ?? addDays(c.defaultWeek, -7 * 26);
@@ -77,6 +102,8 @@ export function App(props: { demo: Dataset | null }) {
     facts: (def, ignoreLoc) => (ignoreLoc ? allFacts(def) : filterLoc(def, allFacts(def), loc)),
     go: (r) => { location.hash = `#/${r}`; window.scrollTo(0, 0); },
     reload: () => { setDs(null); },
+    forget: async () => { await forgetDataset(); setSavedLocally(false); },
+    savedLocally,
   };
 
   const page = route[0];
@@ -112,7 +139,7 @@ export function App(props: { demo: Dataset | null }) {
         {navLinks("")}
         <div class="nav-foot">
           <span>Data through {longDate(c.latest)}</span>
-          <ThemeToggle theme={theme} setTheme={setTheme} />
+          {savedLocally && <span>Loaded {new Date(c.ds.loadedAt).toLocaleDateString()} · saved in this browser</span>}
         </div>
       </nav>
       <div class="main">
@@ -137,7 +164,6 @@ export function App(props: { demo: Dataset | null }) {
                 {c.locations.map((l) => <option value={l}>{l}</option>)}
               </select>
             )}
-            <span class="hide-mobile" style={{ display: "contents" }} />
           </div>
         </header>
         <main class="content">
@@ -149,14 +175,5 @@ export function App(props: { demo: Dataset | null }) {
       </div>
       <nav class="bottomnav" aria-label="Main">{navLinks("")}</nav>
     </div>
-  );
-}
-
-function ThemeToggle(props: { theme: string; setTheme: (t: string) => void }) {
-  const next = props.theme === "auto" ? "dark" : props.theme === "dark" ? "light" : "auto";
-  return (
-    <button class="btn small ghost" style={{ justifyContent: "flex-start", padding: 0 }} onClick={() => props.setTheme(next)} title="Switch theme">
-      {props.theme === "dark" ? <IconMoon /> : <IconSun />} Theme: {props.theme === "auto" ? "Auto" : props.theme === "dark" ? "Dark" : "Light"}
-    </button>
   );
 }

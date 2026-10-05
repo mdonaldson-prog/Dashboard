@@ -3,12 +3,12 @@ import type { AppApi } from "../App";
 import { addDays, monthLabel, monthOf, shortDate, weekLabel } from "../calc/dates";
 import { breakdown, coverageOf, KPIS, series, valueOf, type Grain, type KpiDef } from "../calc/kpis";
 import { REPORTS } from "../data/model";
-import { BreakdownChart, CompareChart, ProductionChart, TrendChart } from "../ui/charts";
+import { BreakdownChart, ProductionChart, TrendChart } from "../ui/charts";
 import { Card, DataTable, Seg, type Col } from "../ui/components";
 import { compact, full } from "../ui/format";
 import { IconX } from "../ui/icons";
 
-const GROUPS = ["Inventory", "Production", "Sales & fulfillment", "Freight", "Transfers"] as const;
+const GROUPS = ["Inventory", "Production", "Sales & fulfillment", "Freight"] as const;
 
 export function Explorer(props: { api: AppApi; def: KpiDef }) {
   const { api, def } = props;
@@ -18,9 +18,8 @@ export function Explorer(props: { api: AppApi; def: KpiDef }) {
   const [period, setPeriod] = useState<string | null>(null);
   const [dim, setDim] = useState(def.dims[0]?.key ?? "");
   const [dimValue, setDimValue] = useState<string | null>(null);
-  const [compare, setCompare] = useState<string[]>([]);
 
-  useEffect(() => { setPeriod(null); setDim(def.dims[0]?.key ?? ""); setDimValue(null); setCompare([]); }, [def.id]);
+  useEffect(() => { setPeriod(null); setDim(def.dims[0]?.key ?? ""); setDimValue(null); }, [def.id]);
   useEffect(() => { setPeriod(null); }, [grain, range, api.week]);
   useEffect(() => { setDimValue(null); }, [dim, period]);
 
@@ -48,7 +47,6 @@ export function Explorer(props: { api: AppApi; def: KpiDef }) {
 
   const showProduction = def.group === "Production" || def.id === "units_sold" || def.id === "units_shipped";
   const cols: Col<Record<string, any>>[] = def.refCols.map((rc) => ({ key: rc.key, label: rc.label, unit: rc.unit }));
-  const compareDefs = [def, ...compare.map((id) => KPIS.find((k) => k.id === id)!)].filter(Boolean);
 
   return (
     <div class="explorer">
@@ -93,11 +91,11 @@ export function Explorer(props: { api: AppApi; def: KpiDef }) {
               <div class="stat"><div class="v">{compact(e.value, e.unit)}</div><div class="l">{e.label}</div></div>
             ))}
           </div>
-          {!def.pointInTime && <TrendChart def={def} points={points} grain={grain} selected={period ?? undefined} onSelect={(k) => k && setPeriod(k === period ? null : k)} />}
+          {!def.pointInTime && <TrendChart def={def} points={points} grain={grain} target={grain === "week" || def.agg !== "sum" ? api.s.targets[def.id]?.value : undefined} selected={period ?? undefined} onSelect={(k) => k && setPeriod(k === period ? null : k)} />}
           {!def.pointInTime && points.some((p) => p.partial) && <div class="small muted">Faded or last points are partial: the reports end on {shortDate(cov?.max ?? "")}.</div>}
         </Card>
 
-        <div class="grid-2-even">
+        <div>
           {def.dims.length > 0 && (
             <Card
               title="Breakdown"
@@ -106,22 +104,6 @@ export function Explorer(props: { api: AppApi; def: KpiDef }) {
             >
               <BreakdownChart def={def} rows={rows} selected={dimValue ?? undefined} onSelect={(k) => k && setDimValue(k === dimValue ? null : k)} />
               {rows.length > 12 && <div class="small muted">Top 12 of {rows.length}. Full list in the table below.</div>}
-            </Card>
-          )}
-          {!def.pointInTime && (
-            <Card title="Compare" sub="Up to 3 KPIs, indexed to 100 at the first period so different units share one axis">
-              <div class="row" style={{ marginBottom: 10 }}>
-                {compare.map((id) => (
-                  <button class="chip" onClick={() => setCompare(compare.filter((x) => x !== id))}>{KPIS.find((k) => k.id === id)?.name} <IconX /></button>
-                ))}
-                {compare.length < 2 && (
-                  <select class="select" aria-label="Add KPI to compare" value="" onChange={(e) => { const v = (e.target as HTMLSelectElement).value; if (v) setCompare([...compare, v]); }}>
-                    <option value="">Add a KPI…</option>
-                    {KPIS.filter((k) => !k.pointInTime && k.id !== def.id && !compare.includes(k.id)).map((k) => <option value={k.id}>{k.name}</option>)}
-                  </select>
-                )}
-              </div>
-              <CompareChart c={c} defs={compareDefs} facts={(d) => api.facts(d)} from={from} to={to} grain={grain} />
             </Card>
           )}
         </div>

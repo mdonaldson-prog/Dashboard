@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "verify": "tsx scripts/verify.ts",
+    "cleanup": "tsx scripts/cleanup-list.ts",
     "demo-data": "tsx scripts/build-demo-data.ts",
     "build:demo": "npm run demo-data && DEMO=1 vite build --outDir dist-demo"
   },
