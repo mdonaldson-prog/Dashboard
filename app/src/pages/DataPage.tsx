@@ -124,6 +124,11 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
         <Card title="Calendar & settings file">
           <div class="stack" style={{ gap: 12 }}>
             <label class="field">
+              Items that ship from another location (count in Sales $, not in units). One name fragment per line.
+              <textarea class="input" style={{ height: 76, padding: 8, fontFamily: "var(--mono)" }} value={s.dropShipPatterns.join("\n")}
+                onChange={(e) => api.setS((x) => ({ ...x, dropShipPatterns: (e.target as HTMLTextAreaElement).value.split("\n").map((v) => v.trim()).filter(Boolean) }))} />
+            </label>
+            <label class="field">
               Holidays (not business days, no counting). One date per line, YYYY-MM-DD.
               <textarea class="input" style={{ height: 120, padding: 8, fontFamily: "var(--mono)" }} value={s.holidays.join("\n")}
                 onChange={(e) => api.setS((x) => ({ ...x, holidays: (e.target as HTMLTextAreaElement).value.split(/\s+/).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) }))} />

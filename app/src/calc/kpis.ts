@@ -66,7 +66,10 @@ const mfgCols = [
   { key: "product", label: "Product" }, { key: "sku", label: "SKU" }, { key: "qty", label: "Units", unit: "units" as Unit },
 ];
 
-function soLineFacts(c: Ctx, by: "order" | "fulfilled", kinds: string[], value: "qty" | "subtotal"): Fact[] {
+const LINE_TYPE = { stock: "Stocked items", dropship: "Ships from another location", nonstock: "Non-stock items & fees" };
+
+/** Sales-order line facts. `unitsOnly` keeps stocked items shipped from your sites (excludes drop-ship and non-stock). */
+function soLineFacts(c: Ctx, by: "order" | "fulfilled", kinds: string[], value: "qty" | "subtotal", unitsOnly = false): Fact[] {
   const out: Fact[] = [];
   for (const o of c.orders.values()) {
     if (o.isQuote || o.cancelled) continue;
@@ -74,6 +77,8 @@ function soLineFacts(c: Ctx, by: "order" | "fulfilled", kinds: string[], value: 
     if (!date) continue;
     for (const l of c.linesByOrder.get(o.order) ?? []) {
       if (!kinds.includes(l.kind)) continue;
+      const cls = l.kind === "item" ? c.lineClass(l, o) : null;
+      if (unitsOnly && cls !== "stock") continue;
       const v = l[value];
       out.push({
         date,
@@ -84,7 +89,7 @@ function soLineFacts(c: Ctx, by: "order" | "fulfilled", kinds: string[], value: 
           category: l.kind === "item" ? c.category(l.sku, l.product) : l.kind === "adjustment" ? "Adjustments" : "Tax",
           product: l.product,
           customer: o.customer || "(no customer)",
-          lineType: l.kind === "item" ? "Items" : "Adjustments",
+          lineType: cls ? LINE_TYPE[cls] : "Adjustments",
         },
         ref: { date, order: o.order, customer: o.customer, location: o.location, product: l.product, qty: l.qty, subtotal: l.subtotal },
       });
@@ -215,21 +220,21 @@ export const KPIS: KpiDef[] = [
   },
   {
     id: "units_sold", name: "Units Sold", group: "Sales & fulfillment", unit: "units", agg: "sum", better: "up",
-    description: "Units on item lines of sales orders placed in the period. Quotes, cancelled orders, tax and adjustment lines are excluded.",
+    description: "Units of stocked items on sales orders placed in the period. Excluded: items shipped from another location (per-lb flake from Torginol), non-stocked items and fees, tax and adjustment lines, quotes and cancelled orders.",
     sources: ["salesOrders"], tile: true, locationAware: true,
     dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }, { key: "customer", label: "Customer" }],
-    refCols: soCols("Ordered"), facts: (c) => soLineFacts(c, "order", ["item"], "qty"),
+    refCols: soCols("Ordered"), facts: (c) => soLineFacts(c, "order", ["item"], "qty", true),
   },
   {
     id: "units_shipped", name: "Units Shipped", group: "Sales & fulfillment", unit: "units", agg: "sum", better: "up",
-    description: "Units on item lines of orders fulfilled in the period (fulfillment date from the Shipped report).",
+    description: "Units of stocked items shipped from your locations on orders fulfilled in the period (fulfillment date from the Shipped report). Items shipped from another location (per-lb flake from Torginol) and non-stocked items are excluded.",
     sources: ["shipped", "salesOrders"], tile: true, locationAware: true,
     dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }, { key: "customer", label: "Customer" }],
-    refCols: soCols("Fulfilled"), facts: (c) => soLineFacts(c, "fulfilled", ["item"], "qty"),
+    refCols: soCols("Fulfilled"), facts: (c) => soLineFacts(c, "fulfilled", ["item"], "qty", true),
   },
   {
     id: "total_sales", name: "Total Sales", group: "Sales & fulfillment", unit: "usd", agg: "sum", better: "up",
-    description: "Item line amounts plus \"Adjustment from imported order\" lines, by order date. Tax, quotes and cancelled orders are excluded.",
+    description: "All item line amounts (including items shipped from another location, non-stocked items and fees) plus \"Adjustment from imported order\" lines, by order date. Tax, quotes and cancelled orders are excluded.",
     sources: ["salesOrders"], tile: false, locationAware: true,
     dims: [{ key: "lineType", label: "Line type" }, { key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "customer", label: "Customer" }],
     refCols: soCols("Ordered"),

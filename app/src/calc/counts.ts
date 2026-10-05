@@ -66,7 +66,7 @@ function transactionCounts(c: Ctx, s: Settings, end: string) {
   for (const o of c.orders.values()) {
     if (o.isQuote || o.cancelled || !inWin(o.orderDate)) continue;
     const loc = o.location === "Unassigned" ? s.unassignedSalesLocation : o.location;
-    for (const l of c.linesByOrder.get(o.order) ?? []) if (l.kind === "item") add(loc, l.sku);
+    for (const l of c.linesByOrder.get(o.order) ?? []) if (l.kind === "item" && c.lineClass(l, o) === "stock") add(loc, l.sku);
   }
   const bomBy = new Map<string, string[]>();
   for (const b of c.ds.bom) {

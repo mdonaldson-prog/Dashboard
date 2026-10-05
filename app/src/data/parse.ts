@@ -116,9 +116,9 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
         }
         const product = s(r, "ProductName");
         const sku = s(r, "ProductSKU");
-        const kindOf = /^tax from imported order$/i.test(product)
+        const kindOf = /^tax from imported order/i.test(product)
           ? "tax"
-          : /^adjustment from imported order$/i.test(product)
+          : /^adjustment from imported order/i.test(product)
             ? "adjustment"
             : "item";
         lines.push({ order, kind: kindOf, sku: sku || product, product, qty: num0(r["ProductQuantity"]), subtotal: num0(r["ProductSubtotal"]) });

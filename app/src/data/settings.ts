@@ -30,6 +30,10 @@ export interface Settings {
     blackouts: string[];
   };
   velocityOverrides: Record<string, VelocityClass>; // `${location}|${sku}`
+  /** Product-name fragments for items shipped from another location (e.g. per-lb flake from Torginol). */
+  dropShipPatterns: string[];
+  /** Sales-order locations that are not your own sites. */
+  dropShipLocations: string[];
   transferMatchDays: number;
 }
 
@@ -55,6 +59,8 @@ export const DEFAULT_SETTINGS: Settings = {
     blackouts: [],
   },
   velocityOverrides: {},
+  dropShipPatterns: ["per lb", "by lb", "ships from torginol"],
+  dropShipLocations: ["Torginol"],
   transferMatchDays: 3,
 };
 

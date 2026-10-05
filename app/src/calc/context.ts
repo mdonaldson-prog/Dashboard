@@ -1,6 +1,11 @@
 // Lookups and classifications shared by every calculation. Built once per dataset + settings.
 
 import type { Dataset, Product, ReportKind, SalesOrder, Shipment, SoLine } from "../data/model";
+
+/** stock = stocked item shipped from your sites (counts as units); dropship = ships from another
+ *  location (e.g. per-lb flake from Torginol); nonstock = non-stocked items and fees. The last two
+ *  count in sales dollars but not in units. */
+export type LineClass = "stock" | "dropship" | "nonstock";
 import { REPORTS } from "../data/model";
 import type { CarrierClass, Settings } from "../data/settings";
 import { carrierClass, defaultCarrierClass } from "../data/settings";
@@ -42,6 +47,7 @@ export interface Ctx {
   linesByOrder: Map<string, SoLine[]>;
   product: (sku: string, name?: string) => Product | undefined;
   category: (sku: string, name?: string) => string;
+  lineClass: (l: SoLine, o: SalesOrder) => LineClass;
   transfers: TransferHeader[];
   shipments: ShipmentX[];
   coverage: Partial<Record<ReportKind, { min: string; max: string }>>;
@@ -76,6 +82,16 @@ export function buildContext(ds: Dataset, s: Settings): Ctx {
   }
   const product = (sku: string, name?: string) => bySku.get(sku) ?? (name ? byName.get(name) : undefined) ?? byName.get(sku);
   const category = (sku: string, name?: string) => product(sku, name)?.category ?? "Uncategorized";
+
+  const patterns = s.dropShipPatterns.map((p) => p.trim().toLowerCase()).filter(Boolean);
+  const dropLocs = new Set(s.dropShipLocations.map((l) => l.trim().toLowerCase()));
+  const lineClass = (l: SoLine, o: SalesOrder): LineClass => {
+    const name = l.product.toLowerCase();
+    if (dropLocs.has(o.location.toLowerCase()) || patterns.some((p) => name.includes(p))) return "dropship";
+    const p = product(l.sku, l.product);
+    if (p && !/^stocked/i.test(p.itemType)) return "nonstock";
+    return "stock";
+  };
 
   // Transfer headers (bin transfers were already dropped on import)
   const th = new Map<string, TransferHeader>();
@@ -129,7 +145,7 @@ export function buildContext(ds: Dataset, s: Settings): Ctx {
   const unclassifiedCarriers = [...new Set(ds.salesOrders.map((o) => o.carrier).filter((c) => c && !s.carrierOverrides[c.toLowerCase()] && defaultCarrierClass(c) === null))].sort();
 
   return {
-    ds, s, holidays, orders, linesByOrder, product, category, transfers, shipments, coverage, latest,
+    ds, s, holidays, orders, linesByOrder, product, category, lineClass, transfers, shipments, coverage, latest,
     currentWeek, defaultWeek: addDays(currentWeek, -7), snapshotDate: latest, locations, unclassifiedCarriers,
   };
 }

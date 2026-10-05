@@ -423,7 +423,7 @@ More KPIs can be added later as definitions in the same format. Candidates the d
 - **Weeks** run Monday–Sunday. Business days are Monday–Friday minus the holidays in Settings.
 - **Units** are inFlow's stock unit for each product. No unit conversion is applied.
 - **Currency:** US dollars only. Any other currency code is flagged.
-- **Excluded from units:** quotes, cancelled orders, tax lines, adjustment lines. **Excluded from Total Sales:** quotes, cancelled orders, tax lines.
+- **Excluded from units:** items that ship from another location (per-lb custom flake from Torginol: names containing "per lb", "by lb" or "ships from Torginol", or orders at location Torginol), non-stocked items and fees (inFlow item type "Non-stocked product", e.g. Petroleum Surcharge), quotes, cancelled orders, tax lines, and adjustment lines. These all **count in Total Sales**, except tax. **Excluded from Total Sales:** quotes, cancelled orders, and tax lines, including "Tax from imported order - Deactivated".
 - **Transportation metrics** exclude ground shipments (all UPS, FedEx Ground/Home/2-day/Overnight), and their on-screen descriptions say so.
 - **Inventory Accuracy note:** As defined, overcounts offset undercounts, and negative on-record quantities shrink the denominator. "Count lines exact %" is shown alongside so the headline number can't hide large offsetting errors.
 
@@ -869,7 +869,6 @@ Helpful, not blocking:
 
 - Make Shipping Carrier required on sales orders in inFlow, so "Carrier unknown" shrinks over time.
 - Fill in costs for the 217 stocked items and 14 inter-site transfer lines with $0 or blank cost.
-- **Units Sold includes items sold by the pound.** Custom blended flake is sold per lb and shipped from Torginol; one order line was 6,000 lb. This is why Units Sold peaks at about 60,000 in the week of Aug 10. Consider excluding per-lb items, or reporting them separately.
 - Older history, if inFlow has data before February 2026.
 
 ---

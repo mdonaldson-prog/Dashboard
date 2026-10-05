@@ -12,6 +12,16 @@ function Tile(props: { api: AppApi; def: KpiDef }) {
   const { api, def } = props;
   const facts = api.facts(def);
   const nonLoc = api.loc !== "All" && !def.locationAware;
+  const missing = def.sources.filter((k) => !api.c.ds.files.some((f) => f.kind === k));
+  if (missing.length) {
+    return (
+      <button class="tile" onClick={() => api.go("data")} aria-label={`${def.name}: needs ${missing.map((k) => REPORTS[k].label).join(", ")}`}>
+        <div class="tile-label">{def.name}</div>
+        <div class="tile-value muted">—</div>
+        <div class="tile-note">Needs {missing.map((k) => REPORTS[k].label).join(" + ")}</div>
+      </button>
+    );
+  }
   let value: number | null;
   let prev: number | null = null;
   let spark: (number | null)[] = [];
