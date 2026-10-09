@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.9 — Aurora freight-portal file added; freight classified by actual flow (9 Oct 2026) |
+| **Status** | Draft v3.0 — inbound (POs into Aurora) and transfer freight split out of customer freight, with their own tiles (9 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -199,7 +199,7 @@ Each finding comes with how the app handles it.
    - New carrier values appear on the import report to classify once.
 9. **Freight portal data.**
    - The Shipment Summary holds the freight **spent** on LTL and truckload shipments.
-   - Portal shipments are classified by the portal's Direction. Outbound shipments delivered to one of your own sites (Aurora, IL; Carrollton, TX; Cypress, TX) are shown as **between your sites**. They count in Total Freight Spend but not in Freight Paid vs Spent or Freight as % of Sales, which are about customer freight. In the sample, 9 shipments ($6,580) went between your sites.
+   - Portal shipments are classified by where they actually went (see **Freight by site** in §7.1). Anything shipped to Aurora is an inbound purchase order; site-to-site shipments from 1 Aug 2026 are transfers. Both count in Total Freight Spend and have their own tiles, but not in Freight Paid vs Spent or Freight as % of Sales, which are about customer freight.
    - Only 18 of 50 shipments match a sales order by tracking number, and 5 by order number. Weekly totals don't need the match; drill-down lists unmatched shipments as "Not linked to an order".
    - 33 of 50 shipments have no actual arrival time, so carrier on-time delivery covers only some shipments.
 10. **Stock count report.**
@@ -230,7 +230,7 @@ Each finding comes with how the app handles it.
 | F8 | Stock Count report | Inventory Accuracy %, last-counted dates | Received |
 | F9 | Vendors | Vendor scorecards | Later phase |
 | F10 | Stock transfer report | Not used for now | Received; ignored |
-| C1 | Freight portal Shipment Summary | Freight spent (to customers, inbound, between your sites), carrier on-time, cost per lb | Received |
+| C1 | Freight portal Shipment Summary | Freight spent (to customers, inbound POs, transfers between your sites), carrier on-time, cost per lb | Received |
 | ~~C2~~ | ~~Parcel freight cost~~ | Not needed: ground shipments are excluded from transportation metrics | Dropped |
 
 ### 5.4 Weekly Upload Checklist
@@ -383,9 +383,11 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Units Sold | Units of stocked items on orders placed last week. Excludes items that ship from another location (per-lb flake from Torginol) and non-stock items/fees. | 1 | Ready |
 | Units Shipped | Units of stocked items shipped from your sites on orders fulfilled last week (same exclusions) | 1 + 2 | Ready |
 | Late Orders | Open (unfulfilled) orders more than **3 business days** old, as of the latest data. Also shows open orders, open units, and open value, with an age breakdown. | 1 + 2 | Ready |
-| Freight Paid vs Spent | **Net $ = paid − spent.** Paid: freight charged to customers on orders fulfilled last week by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound shipments to customers. *Ground, inbound, and shipments between your sites are not included.* | 1 + 2 + 7 | Ready |
-| Freight as % of Sales | Outbound freight to customers ÷ Total Sales, last week. *Ground shipments are not included.* | 1 + 7 | Ready |
-| Total Freight Spend | All freight-portal cost: to customers + inbound + between your sites, with each part shown. *Ground shipments are not included.* | 7 | Ready |
+| Freight Paid vs Spent | **Net $ = paid − spent.** Paid: freight charged to customers on orders fulfilled last week by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound shipments to customers. *Ground, inbound (POs into Aurora), and transfers between your sites are not included.* | 1 + 2 + 7 | Ready |
+| Freight as % of Sales | Freight to customers (outbound + drop-ship) ÷ Total Sales, last week. *Ground, inbound, and transfers are not included.* | 1 + 7 | Ready |
+| Total Freight Spend | All freight-portal cost: to customers + drop-ship + inbound + transfers, with each part shown. *Ground shipments are not included.* | 7 | Ready |
+| Inbound Freight | Freight-portal cost of everything shipped to Aurora (purchase orders, from any origin, including DFW and Houston) and of vendor shipments to DFW or Houston. Part of Total Freight Spend only. | 7 | Ready |
+| Transfer Freight | Freight-portal cost of site-to-site shipments not going to Aurora (Aurora → DFW or Houston, DFW ↔ Houston) picked up on or after **1 Aug 2026** (the transfer start date, editable on the Data page). Earlier shipments on those lanes were customer orders and count as outbound. Part of Total Freight Spend only. | 7 | Ready |
 | Carrier On-Time Delivery | Portal shipments delivered on or before the scheduled date ÷ shipments with an actual arrival date. Only about a third of portal shipments have an arrival date today. | 7 | Ready |
 
 **Supporting metrics** (in the KPI Explorer):
@@ -393,7 +395,6 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Metric | Definition |
 |---|---|
 | Total Sales | All item line amounts (including drop-ship and non-stock items and fees) **+ adjustment lines**, tax excluded, by order date. The denominator for Freight as % of Sales. |
-| Inbound Freight Spend | Freight-portal cost of inbound shipments. Also part of Total Freight Spend. |
 | Freight Cost per lb | Freight-portal cost ÷ shipment weight, by carrier and mode |
 
 **Values from the sample files, week of Sep 21–27, 2026:**
@@ -408,10 +409,12 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Units Sold / Shipped | 3,627 / 2,809 |
 | Late Orders | 87 of 120 open orders (45 open more than 30 business days); $257K open value |
 | Order Fulfillment Speed | 1.6 business days on average (median 1), 90% within 1 business day |
-| Freight Paid vs Spent | +$5,165 net (paid $9,128, spent $3,963) |
-| Freight as % of Sales | 0.8% |
-| Total Freight Spend | $7,437 (customers $3,963, inbound $1,338, between sites $2,136) |
-| Carrier On-Time Delivery | No deliveries recorded that week; 15 of 17 on time across all data |
+| Freight Paid vs Spent | −$8,454 net (paid $9,128, spent $17,582) |
+| Freight as % of Sales | 3.5% |
+| Total Freight Spend | $24.7K (customers $15,142, drop-ship $2,439, inbound $7,081, transfers $0) |
+| Inbound Freight | $7,081 (7 shipments) |
+| Transfer Freight | $0 that week; $5,580 over the 26 weeks to Sep 27 (6 shipments since 1 Aug) |
+| Carrier On-Time Delivery | 80% (24 of 30 delivered on time) |
 
 **Targets.** Each KPI can have a target and an amber tolerance (in % of the target) on the Data & settings page. Tiles show green (on target), amber (within tolerance), or red (off target) with an icon and label, and the KPI chart draws the target line.
 
@@ -431,10 +434,12 @@ Agreed targets (9 Oct 2026), built in as defaults:
 |---|---|---|---|
 | Your site | Customer | Outbound to customers | Origin |
 | Vendor (e.g. Torginol) | Customer | Drop-ship to customers | None (All locations only) |
-| Vendor | Your site | Inbound | Destination |
-| Your site | Your site | Between your sites | Origin |
+| Anywhere (vendor, DFW, Houston) | Aurora | Inbound (purchase order) | Aurora |
+| Vendor | DFW or Houston | Inbound | Destination |
+| Your site | DFW or Houston, picked up on or after 1 Aug 2026 | Transfer | Origin |
+| Your site | DFW or Houston, before 1 Aug 2026 | Outbound to customers | Origin |
 
-Customer-freight KPIs (Freight Paid vs Spent, Freight as % of Sales) include outbound and drop-ship. If a selected site has no portal shipments at all, the tiles say so instead of showing $0.
+Customer-freight KPIs (Freight Paid vs Spent, Freight as % of Sales) include outbound and drop-ship only. Inbound and transfers have their own tiles and are part of Total Freight Spend. If a selected site has no portal shipments at all, the tiles say so instead of showing $0.
 
 **Units Blended** counts the blended product each blend order makes (e.g. HyperBond Part A- BLENDED, Aspartic Slow Go Low Odor A), confirmed 9 Oct.
 
@@ -469,7 +474,7 @@ Clicking any tile, or opening **KPIs** in the menu, opens the KPI Explorer, whic
   - **Production units:** by type (blended, filled, kitted manual, kitted auto-built), product category, and product.
   - **Units sold, units shipped, and sales:** by product category, product, customer, and location.
   - **Fulfillment speed:** by location, carrier class, and days-to-fulfill buckets (0, 1, 2, 3–5, 6+).
-  - **Freight:** by direction (to customers, inbound, between your sites), carrier, mode (LTL, truckload), and origin location.
+  - **Freight:** by direction (to customers, drop-ship, inbound, transfers), carrier, mode (LTL, truckload), and origin location.
   - **Late orders:** by age, location, and customer.
   - **Inventory accuracy:** by location, count, velocity class, and SKU, with the biggest variances first.
   - **Inventory value:** by location and category.

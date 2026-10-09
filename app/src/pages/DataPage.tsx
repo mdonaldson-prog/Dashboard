@@ -204,6 +204,10 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
                 Dormant after (days with no movement)
                 <input class="input" style={{ width: 90 }} inputMode="numeric" value={String(s.dormantDays)} onChange={(e) => api.setS((x) => ({ ...x, dormantDays: Math.max(1, Number((e.target as HTMLInputElement).value) || 120) }))} />
               </label>
+              <label class="field">
+                Site-to-site freight is a transfer from
+                <input class="input" style={{ width: 150 }} type="date" value={s.transferStartDate} onChange={(e) => { const v = (e.target as HTMLInputElement).value; if (v) api.setS((x) => ({ ...x, transferStartDate: v })); }} />
+              </label>
             </div>
             <label class="field">
               Items that ship from another location (count in Sales $, not in units). One name fragment per line.

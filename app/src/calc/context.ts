@@ -19,8 +19,10 @@ export interface Order extends SalesOrder {
 
 /** Where a freight-portal shipment actually went (the portal's own Direction label isn't reliable):
  *  outbound = your site → customer; dropship = vendor (e.g. Torginol) → customer;
- *  inbound = vendor → your site; between = your site → your site. */
-export type ShipmentDir = "outbound" | "dropship" | "inbound" | "between";
+ *  inbound = anything into Aurora (purchase orders), or a vendor → any of your sites;
+ *  transfer = your site → another of your sites (not Aurora), picked up on or after the
+ *  transfer start date. Before that date those shipments were customer orders, so they count as outbound. */
+export type ShipmentDir = "outbound" | "dropship" | "inbound" | "transfer";
 export interface ShipmentX extends Shipment {
   dir: ShipmentDir;
   originLoc: string; // your site name if the origin city is one of yours
@@ -96,7 +98,10 @@ export function buildContext(ds: Dataset, s: Settings): Ctx {
   const shipments: ShipmentX[] = ds.shipments.map((sh) => {
     const originLoc = cityToLoc.get(sh.originCity.toLowerCase()) ?? "";
     const destLoc = cityToLoc.get(sh.destCity.toLowerCase()) ?? "";
-    const dir: ShipmentDir = originLoc && destLoc ? "between" : destLoc ? "inbound" : originLoc ? "outbound" : "dropship";
+    const dir: ShipmentDir =
+      destLoc === s.mfgLocation || (destLoc && !originLoc) ? "inbound"
+      : originLoc && destLoc ? (sh.pickup >= s.transferStartDate ? "transfer" : "outbound")
+      : originLoc ? "outbound" : "dropship";
     return { ...sh, dir, originLoc, destLoc };
   });
 

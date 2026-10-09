@@ -21,7 +21,7 @@ export interface Target {
 }
 
 export interface Settings {
-  version: 3;
+  version: 4;
   carrierOverrides: Record<string, CarrierClass>; // lower-cased inFlow value → class
   locations: Record<string, LocationSettings>;
   unassignedSalesLocation: string; // where sales lines with no location count for velocity
@@ -48,10 +48,12 @@ export interface Settings {
   lateOrderDays: number;
   /** No movement for this many days = dormant inventory. */
   dormantDays: number;
+  /** From this pickup date, freight from your site to another of your sites is a transfer, not a customer order. */
+  transferStartDate: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 3,
+  version: 4,
   carrierOverrides: {},
   locations: {
     Aurora: { countingActive: true, capacityPerDay: 65, portalCity: "Aurora, IL" },
@@ -84,6 +86,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   lateOrderDays: 3,
   dormantDays: 120,
+  transferStartDate: "2026-08-01",
 };
 
 const GROUND = ["ups", "fedex ground", "fedex home", "fedex 2-day", "fedex 2 day", "fedex priority overnight", "fedex overnight", "fedex standard overnight", "fedex express saver"];
@@ -145,7 +148,7 @@ export function mergeSettings(saved: Partial<Settings>): Settings {
   return {
     ...d,
     ...saved,
-    version: 3,
+    version: 4,
     // Before v3 there were no agreed targets: start from the defaults, keeping any the user set
     targets: (savedVersion ?? 0) < 3 ? { ...d.targets, ...(saved.targets ?? {}) } : { ...(saved.targets ?? {}) },
     locations: { ...d.locations, ...(saved.locations ?? {}) },
