@@ -8,7 +8,7 @@ export type Status = "good" | "warn" | "bad";
 export function targetStatus(def: KpiDef, value: number | null, t: Target | undefined): Status | null {
   if (!t || value == null || isNaN(value) || isNaN(t.value)) return null;
   const tol = Math.abs(t.value) * (t.tolerancePct / 100);
-  switch (def.better) {
+  switch (t.rule === "atLeast" ? "up" : t.rule === "atMost" ? "down" : def.better) {
     case "up":
       return value >= t.value ? "good" : value >= t.value - tol ? "warn" : "bad";
     case "down":

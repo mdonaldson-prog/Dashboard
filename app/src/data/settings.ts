@@ -14,12 +14,14 @@ export interface LocationSettings {
 
 export interface Target {
   value: number;
+  /** Overrides the KPI's usual direction: atLeast = value ≥ target is good, atMost = value ≤ target. */
+  rule?: "atLeast" | "atMost";
   /** How far off target (in % of the target) still counts as amber. */
   tolerancePct: number;
 }
 
 export interface Settings {
-  version: 2;
+  version: 3;
   carrierOverrides: Record<string, CarrierClass>; // lower-cased inFlow value → class
   locations: Record<string, LocationSettings>;
   unassignedSalesLocation: string; // where sales lines with no location count for velocity
@@ -49,7 +51,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 2,
+  version: 3,
   carrierOverrides: {},
   locations: {
     Aurora: { countingActive: true, capacityPerDay: 65, portalCity: "Aurora, IL" },
@@ -72,7 +74,14 @@ export const DEFAULT_SETTINGS: Settings = {
   velocityOverrides: {},
   dropShipPatterns: ["per lb", "by lb", "ships from torginol"],
   dropShipLocations: ["Torginol"],
-  targets: {},
+  // Targets agreed 9 Oct 2026. Unit targets are per week. KPIs without a target are tracked only.
+  targets: {
+    inventory_accuracy: { value: 98, rule: "atLeast", tolerancePct: 1 },
+    units_blended: { value: 5500, tolerancePct: 5 },
+    units_filled: { value: 8250, tolerancePct: 5 },
+    units_kitted: { value: 1000, tolerancePct: 5 },
+    fulfillment_speed: { value: 2, rule: "atMost", tolerancePct: 10 },
+  },
   lateOrderDays: 3,
   dormantDays: 120,
 };
@@ -136,8 +145,9 @@ export function mergeSettings(saved: Partial<Settings>): Settings {
   return {
     ...d,
     ...saved,
-    version: 2,
-    targets: { ...(saved.targets ?? {}) },
+    version: 3,
+    // Before v3 there were no agreed targets: start from the defaults, keeping any the user set
+    targets: (savedVersion ?? 0) < 3 ? { ...d.targets, ...(saved.targets ?? {}) } : { ...(saved.targets ?? {}) },
     locations: { ...d.locations, ...(saved.locations ?? {}) },
     counts: { ...d.counts, ...(saved.counts ?? {}) },
     carrierOverrides: { ...(saved.carrierOverrides ?? {}) },

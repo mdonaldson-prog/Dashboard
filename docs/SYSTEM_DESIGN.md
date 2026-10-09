@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.6 — prototype v2: targets, late orders, count adjustments, dormant inventory, carrier on-time, print summary, saved data; transfers removed (5 Oct 2026) |
+| **Status** | Draft v2.7 — agreed KPI targets built in (9 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -414,6 +414,20 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Carrier On-Time Delivery | No deliveries recorded that week; 15 of 17 on time across all data |
 
 **Targets.** Each KPI can have a target and an amber tolerance (in % of the target) on the Data & settings page. Tiles show green (on target), amber (within tolerance), or red (off target) with an icon and label, and the KPI chart draws the target line.
+
+Agreed targets (9 Oct 2026), built in as defaults:
+
+| KPI | Target | Amber band |
+|---|---|---|
+| Inventory Accuracy | 98% or greater | 97.0–98% |
+| Units Blended | 5,500 per week or more | 5,225–5,500 |
+| Units Filled | 8,250 per week or more | 7,838–8,250 |
+| Units Kitted | 1,000 per week or more | 950–1,000 |
+| Order Fulfillment Speed | 2 business days or less | 2.0–2.2 |
+
+**Tracked without a target:** Count Adjustments, Dormant Inventory, Current Inventory Value, Units Sold, Units Shipped, Late Orders, Freight Paid vs Spent, Freight as % of Sales, Total Freight Spend, Carrier On-Time Delivery.
+
+Sep 21–27 against targets: Accuracy 98.3% ✅, Blended 7,676 ✅, Filled 4,495 ❌, Kitted 1,385 ✅, Fulfillment 1.6 days ✅.
 
 **Calculation rules**
 
@@ -867,7 +881,6 @@ Helpful, not blocking:
 
 - Make Shipping Carrier required on sales orders in inFlow, so "Carrier unknown" shrinks over time.
 - Work through the data cleanup list (Data page → Download cleanup list): 57 products without SKU, 190 stocked items with $0 cost, 41 stock rows not in products, 156 negative on-hand rows, 63 sold items not in products.
-- Set targets for the KPIs (Data page → Targets).
 - Review the 45 orders open more than 30 business days. Many may be stale and should be closed or cancelled in inFlow.
 - Older history, if inFlow has data before February 2026.
 

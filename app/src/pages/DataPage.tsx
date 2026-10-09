@@ -117,7 +117,7 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
           pageSize={30}
           cols={[
             { key: "name", label: "KPI", render: (k) => <><b>{k.name}</b><div class="small muted">{k.group}</div></> },
-            { key: "better", label: "Good when", render: (k) => ({ up: "Higher", down: "Lower", near100: "Closer to 100%", near0: "Closer to $0", none: "" })[k.better] },
+            { key: "better", label: "Good when", render: (k) => { const r = s.targets[k.id]?.rule; return r === "atLeast" ? "At or above target" : r === "atMost" ? "At or below target" : ({ up: "Higher", down: "Lower", near100: "Closer to 100%", near0: "Closer to $0", none: "" })[k.better]; } },
             {
               key: "target", label: "Target", num: true,
               render: (k) => (
