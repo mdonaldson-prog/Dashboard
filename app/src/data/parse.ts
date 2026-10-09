@@ -256,11 +256,19 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
   return { info, data };
 }
 
-/** Combine parsed files into one dataset. A later file of the same kind replaces an earlier one. */
+/** Combine parsed files into one dataset. A later file of the same kind replaces an earlier one,
+ *  except freight-portal Shipment Summaries: each portal account (Aurora; DFW/Houston) exports its
+ *  own file, so those are combined, de-duplicated by Shipment Id. */
 export function buildDataset(parsed: { info: FileInfo; data: Partial<Dataset> }[]): Dataset {
   const ds = emptyDataset();
   const byKind = new Map<string, { info: FileInfo; data: Partial<Dataset> }>();
+  const shipments = new Map<string, Shipment>();
   for (const p of parsed) {
+    if (p.info.kind === "shipments") {
+      for (const sh of p.data.shipments ?? []) shipments.set(sh.id || `${p.info.name}#${shipments.size}`, sh);
+      ds.files.push(p.info);
+      continue;
+    }
     if (p.info.kind) {
       const prev = byKind.get(p.info.kind);
       if (prev) prev.info.warnings.push(`Replaced by ${p.info.name}.`);
@@ -269,5 +277,6 @@ export function buildDataset(parsed: { info: FileInfo; data: Partial<Dataset> }[
     ds.files.push(p.info);
   }
   for (const { data } of byKind.values()) Object.assign(ds, data);
+  ds.shipments = [...shipments.values()];
   return ds;
 }

@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { cleanupSheets } from "../calc/cleanup";
 import { longDate } from "../calc/dates";
 import { KPIS } from "../calc/kpis";
-import { REPORTS, type ReportKind } from "../data/model";
+import { REPORTS, type FileInfo, type ReportKind } from "../data/model";
 import { CARRIER_CLASS_LABEL, carrierClass, DEFAULT_SETTINGS, mergeSettings, type CarrierClass } from "../data/settings";
 import { Card, DataTable, Seg } from "../ui/components";
 import { downloadBlob } from "../ui/csv";
@@ -14,7 +14,22 @@ export function DataPage(props: { api: AppApi; theme: string; setTheme: (t: stri
   const { api } = props;
   const { c, s } = api;
   const [msg, setMsg] = useState("");
-  const loaded = new Map(c.ds.files.filter((f) => f.kind).map((f) => [f.kind!, f]));
+  // One row per report; freight-portal files (one per account) are combined into a single row
+  const loaded = new Map<ReportKind, FileInfo>();
+  for (const f of c.ds.files) {
+    if (!f.kind) continue;
+    const prev = loaded.get(f.kind);
+    if (prev && f.kind === "shipments") {
+      loaded.set(f.kind, {
+        ...prev,
+        name: `${prev.name} + ${f.name}`,
+        rows: prev.rows + f.rows,
+        minDate: [prev.minDate, f.minDate].filter(Boolean).sort()[0],
+        maxDate: [prev.maxDate, f.maxDate].filter(Boolean).sort().pop(),
+        warnings: [...prev.warnings, ...f.warnings],
+      });
+    } else loaded.set(f.kind, f);
+  }
   const kinds = (Object.keys(REPORTS) as ReportKind[]).filter((k) => REPORTS[k].weekly || k === "bom" || loaded.has(k));
 
   // Carrier values with order counts and freight charged

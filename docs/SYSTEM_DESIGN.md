@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.8 — finished-kit counting, no category breakdowns, freight site coverage note (9 Oct 2026) |
+| **Status** | Draft v2.9 — Aurora freight-portal file added; freight classified by actual flow (9 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -245,7 +245,7 @@ Every Monday (or the first workday of the week), export these into `inflow-expor
 | 4 | **Stock count report** (saved report, filtered to **completed** counts) | inFlow → Reports | Started date: last 90 days | Inventory Accuracy %, last-counted dates for the count schedule |
 | 5 | **Stock Levels** (`inFlow_StockLevels`) | inFlow → export | None (current) | Current Inventory Value, count sheets, weekly history snapshot |
 | 6 | **Product Details** (`inFlow_ProductDetails`) | inFlow → Products → Export | None (current) | Costs for inventory value, categories, new SKUs |
-| 7 | **Shipment Summary** | Freight portal | Scheduled pickup: last 90 days | Freight spent, carrier on-time delivery, cost per lb |
+| 7 | **Shipment Summary — both portal accounts** (Aurora, and DFW/Houston): one file each | Freight portal | Scheduled pickup: last 90 days | Freight spent, carrier on-time delivery, cost per lb |
 
 **Monthly, or whenever BOMs change:** 8. **BOM** (`inFlow_BOM`), for component use in velocity.
 
@@ -425,7 +425,18 @@ Agreed targets (9 Oct 2026), built in as defaults:
 | Units Kitted | 1,000 per week or more | 950–1,000 |
 | Order Fulfillment Speed | 2 business days or less | 2.0–2.2 |
 
-**Freight by site:** The freight portal only has shipments leaving DFW (Carrollton) and Houston (Cypress). Aurora's freight cost isn't in any uploaded report, so with Aurora selected the freight tiles say so instead of showing $0.
+**Freight by site:** Each freight-portal account exports its own Shipment Summary: Aurora's, and DFW/Houston's. The app combines them, de-duplicating by Shipment Id. Shipments are classified by where they actually went, not the portal's Direction label, which isn't reliable (e.g. Torginol → Aurora purchases are marked OUTBOUND):
+
+| From | To | Counted as | Site |
+|---|---|---|---|
+| Your site | Customer | Outbound to customers | Origin |
+| Vendor (e.g. Torginol) | Customer | Drop-ship to customers | None (All locations only) |
+| Vendor | Your site | Inbound | Destination |
+| Your site | Your site | Between your sites | Origin |
+
+Customer-freight KPIs (Freight Paid vs Spent, Freight as % of Sales) include outbound and drop-ship. If a selected site has no portal shipments at all, the tiles say so instead of showing $0.
+
+**Units Blended** counts the blended product each blend order makes (e.g. HyperBond Part A- BLENDED, Aspartic Slow Go Low Odor A), confirmed 9 Oct.
 
 **Tracked without a target:** Count Adjustments, Dormant Inventory, Current Inventory Value, Units Sold, Units Shipped, Late Orders, Freight Paid vs Spent, Freight as % of Sales, Total Freight Spend, Carrier On-Time Delivery.
 

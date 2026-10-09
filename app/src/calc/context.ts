@@ -17,7 +17,10 @@ export interface Order extends SalesOrder {
   locationWasBlank: boolean;
 }
 
-export type ShipmentDir = "outbound" | "inbound";
+/** Where a freight-portal shipment actually went (the portal's own Direction label isn't reliable):
+ *  outbound = your site → customer; dropship = vendor (e.g. Torginol) → customer;
+ *  inbound = vendor → your site; between = your site → your site. */
+export type ShipmentDir = "outbound" | "dropship" | "inbound" | "between";
 export interface ShipmentX extends Shipment {
   dir: ShipmentDir;
   originLoc: string; // your site name if the origin city is one of yours
@@ -90,19 +93,24 @@ export function buildContext(ds: Dataset, s: Settings): Ctx {
   // Freight portal: direction as reported, plus which of your sites each end is
   const cityToLoc = new Map<string, string>();
   for (const [loc, ls] of Object.entries(s.locations)) cityToLoc.set(ls.portalCity.toLowerCase(), loc);
-  const shipments: ShipmentX[] = ds.shipments.map((sh) => ({
-    ...sh,
-    dir: sh.direction === "INBOUND" ? "inbound" : "outbound",
-    originLoc: cityToLoc.get(sh.originCity.toLowerCase()) ?? "",
-    destLoc: cityToLoc.get(sh.destCity.toLowerCase()) ?? "",
-  }));
+  const shipments: ShipmentX[] = ds.shipments.map((sh) => {
+    const originLoc = cityToLoc.get(sh.originCity.toLowerCase()) ?? "";
+    const destLoc = cityToLoc.get(sh.destCity.toLowerCase()) ?? "";
+    const dir: ShipmentDir = originLoc && destLoc ? "between" : destLoc ? "inbound" : originLoc ? "outbound" : "dropship";
+    return { ...sh, dir, originLoc, destLoc };
+  });
 
   // Coverage of each dated report, for knowing which weeks have data
   const coverage: Ctx["coverage"] = {};
   for (const f of ds.files) {
-    if (f.kind && REPORTS[f.kind].dated && f.minDate && f.maxDate) coverage[f.kind] = { min: f.minDate, max: f.maxDate };
+    if (!(f.kind && REPORTS[f.kind].dated && f.minDate && f.maxDate)) continue;
+    const cur = coverage[f.kind];
+    // Several files of one kind (freight portal accounts) cover the union of their dates
+    coverage[f.kind] = cur ? { min: f.minDate < cur.min ? f.minDate : cur.min, max: f.maxDate > cur.max ? f.maxDate : cur.max } : { min: f.minDate, max: f.maxDate };
   }
-  const latest = Object.values(coverage).map((c) => c!.max).sort().pop() ?? ds.loadedAt.slice(0, 10);
+  // "Latest" follows the sales orders when present, so a report exported a few days later
+  // (e.g. the freight portal) doesn't make last week look partial for everything else
+  const latest = coverage.salesOrders?.max ?? Object.values(coverage).map((c) => c!.max).sort().pop() ?? ds.loadedAt.slice(0, 10);
   const currentWeek = mondayOf(latest);
 
   const locations = [...new Set([...Object.keys(s.locations), ...ds.stockLevels.map((x) => x.location)].filter(Boolean))].sort();

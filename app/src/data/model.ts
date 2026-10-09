@@ -19,7 +19,7 @@ export const REPORTS: Record<ReportKind, { label: string; weekly: boolean; dated
   stockCounts: { label: "Stock count report (completed)", weekly: true, dated: true },
   stockLevels: { label: "Stock Levels", weekly: true, dated: false },
   products: { label: "Product Details", weekly: true, dated: false },
-  shipments: { label: "Shipment Summary (freight portal)", weekly: true, dated: true },
+  shipments: { label: "Shipment Summary (freight portal, one per account: Aurora + DFW/Houston)", weekly: true, dated: true },
   transfers: { label: "Stock transfer report (not used)", weekly: false, dated: false },
   bom: { label: "BOM (monthly)", weekly: false, dated: false },
 };

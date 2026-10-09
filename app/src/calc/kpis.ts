@@ -106,20 +106,23 @@ const soCols = (dateLabel: string) => [
   { key: "qty", label: "Units", unit: "units" as Unit }, { key: "subtotal", label: "Amount", unit: "usd" as Unit },
 ];
 
-const dirLabel = (c: Ctx, s: ShipmentX) => (s.dir === "inbound" ? "Inbound" : s.destLoc ? "Between your sites" : "Outbound to customers");
+const DIR_LABEL: Record<ShipmentX["dir"], string> = { outbound: "Outbound to customers", dropship: "Drop-ship to customers", inbound: "Inbound", between: "Between your sites" };
+const dirLabel = (_c: Ctx, s: ShipmentX) => DIR_LABEL[s.dir];
+/** Site a shipment's cost belongs to: destination for inbound, origin otherwise; drop-ships aren't a site. */
+const siteOf = (s: ShipmentX) => (s.dir === "inbound" ? s.destLoc : s.originLoc) || `Drop-ship (${s.origin || s.originCity})`;
 
 /** Freight-portal cost facts. `dirs`: outbound (to customers), inbound, own (between your sites). */
-function portalFacts(c: Ctx, dirs: ("outbound" | "inbound" | "own")[], _spent = false): Fact[] {
+function portalFacts(c: Ctx, dirs: ShipmentX["dir"][], _spent = false): Fact[] {
   return c.shipments
     .filter((s) => s.pickup)
-    .map((s) => ({ s, d: (s.dir === "inbound" ? "inbound" : s.destLoc ? "own" : "outbound") as "outbound" | "inbound" | "own" }))
+    .map((s) => ({ s, d: s.dir }))
     .filter(({ d }) => dirs.includes(d))
     .map(({ s, d }) => ({
       date: s.pickup,
       num: s.cost,
       den: 1,
       dims: {
-        location: s.dir === "inbound" ? s.destLoc || "Other" : s.originLoc || "Other",
+        location: siteOf(s),
         direction: dirLabel(c, s),
         carrier: s.carrier || "(none)",
         mode: s.mode || "(none)",
@@ -285,7 +288,7 @@ export const KPIS: KpiDef[] = [
   },
   {
     id: "freight_net", name: "Freight Paid vs Spent", group: "Freight", unit: "usd", agg: "sum", better: "up",
-    description: `Net freight = paid − spent. Paid: freight charged to customers on orders fulfilled in the period by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound shipments to customers picked up in the period. Inbound freight and shipments between your own sites are not included. ${GROUND_NOTE}`,
+    description: `Net freight = paid − spent. Paid: freight charged to customers on orders fulfilled in the period by freight carriers or with carrier unknown. Spent: freight-portal cost of shipments to customers picked up in the period, from your sites and drop-shipped from vendors (Torginol). Inbound freight and shipments between your own sites are not included. ${GROUND_NOTE}`,
     sources: ["salesOrders", "shipped", "shipments"], tile: true, locationAware: true,
     dims: [{ key: "side", label: "Paid / spent" }, { key: "carrier", label: "Carrier" }, { key: "location", label: "Location" }],
     refCols: [
@@ -302,7 +305,7 @@ export const KPIS: KpiDef[] = [
           ref: { date: o.fulfilled, side: "Paid", doc: o.order, party: o.customer, paid: o.freight, spent: 0 },
         });
       }
-      for (const f of portalFacts(c, ["outbound"], true)) {
+      for (const f of portalFacts(c, ["outbound", "dropship"], true)) {
         out.push({ ...f, num: -f.ref.cost, den: 1, dims: { side: "Spent with carriers", carrier: f.dims.carrier, location: f.dims.location }, ref: { date: f.date, side: "Spent", doc: f.ref.id, party: f.ref.carrier, paid: 0, spent: f.ref.cost } });
       }
       return out;
@@ -314,12 +317,12 @@ export const KPIS: KpiDef[] = [
   },
   {
     id: "freight_pct_sales", name: "Freight as % of Sales", group: "Freight", unit: "pct", agg: "ratio", better: "down",
-    description: `Outbound freight to customers (freight portal) ÷ Total Sales, in the period. ${GROUND_NOTE}`,
+    description: `Freight to customers (freight portal: shipped from your sites plus drop-ships from vendors) ÷ Total Sales, in the period. ${GROUND_NOTE}`,
     sources: ["salesOrders", "shipments"], tile: true, locationAware: true,
     dims: [{ key: "location", label: "Location" }],
     refCols: [{ key: "date", label: "Date" }, { key: "doc", label: "Order / shipment" }, { key: "freight", label: "Freight", unit: "usd" }, { key: "sales", label: "Sales", unit: "usd" }],
     facts: (c) => [
-      ...portalFacts(c, ["outbound"], true).map((f) => ({ ...f, num: f.ref.cost as number, den: 0, ref: { date: f.date, doc: `Shipment ${f.ref.id}`, freight: f.ref.cost, sales: 0 } })),
+      ...portalFacts(c, ["outbound", "dropship"], true).map((f) => ({ ...f, num: f.ref.cost as number, den: 0, ref: { date: f.date, doc: `Shipment ${f.ref.id}`, freight: f.ref.cost, sales: 0 } })),
       ...soLineFacts(c, "order", ["item", "adjustment"], "subtotal").map((f) => ({ ...f, den: f.num, num: 0, ref: { date: f.date, doc: `Order ${f.ref.order}`, freight: 0, sales: f.ref.subtotal } })),
     ],
     extras: (f) => [
@@ -329,14 +332,15 @@ export const KPIS: KpiDef[] = [
   },
   {
     id: "total_freight", name: "Total Freight Spend", group: "Freight", unit: "usd", agg: "sum", better: "down",
-    description: `All freight-portal cost picked up in the period: outbound to customers, inbound, and shipments between your own sites. ${GROUND_NOTE}`,
+    description: `All freight-portal cost picked up in the period: to customers from your sites, drop-ships from vendors (Torginol), inbound, and between your own sites. Shipments are classified by where they actually went, not the portal's Direction label. ${GROUND_NOTE}`,
     sources: ["shipments"], tile: true, locationAware: true,
     dims: [{ key: "direction", label: "Direction" }, { key: "carrier", label: "Carrier" }, { key: "mode", label: "Mode" }, { key: "location", label: "Site" }],
-    refCols: portalCols, facts: (c) => portalFacts(c, ["outbound", "inbound", "own"]),
+    refCols: portalCols, facts: (c) => portalFacts(c, ["outbound", "dropship", "inbound", "between"]),
     extras: (f) => [
       { label: "To customers", value: sum(f.filter((x) => x.ref.dir === "outbound").map((x) => x.num)), unit: "usd" },
+      { label: "Drop-ship", value: sum(f.filter((x) => x.ref.dir === "dropship").map((x) => x.num)), unit: "usd" },
       { label: "Inbound", value: sum(f.filter((x) => x.ref.dir === "inbound").map((x) => x.num)), unit: "usd" },
-      { label: "Between sites", value: sum(f.filter((x) => x.ref.dir === "own").map((x) => x.num)), unit: "usd" },
+      { label: "Between sites", value: sum(f.filter((x) => x.ref.dir === "between").map((x) => x.num)), unit: "usd" },
     ],
   },
   {
@@ -362,7 +366,7 @@ export const KPIS: KpiDef[] = [
           const late = Math.max(0, businessDays(s.scheduledDelivery, s.actualArrival, c.holidays));
           return {
             date: s.actualArrival, num: s.actualArrival <= s.scheduledDelivery ? 1 : 0, den: 1,
-            dims: { carrier: s.carrier || "(none)", direction: dirLabel(c, s), mode: s.mode || "(none)", location: s.dir === "inbound" ? s.destLoc || "Other" : s.originLoc || "Other" },
+            dims: { carrier: s.carrier || "(none)", direction: dirLabel(c, s), mode: s.mode || "(none)", location: siteOf(s) },
             ref: { date: s.actualArrival, id: s.id, carrier: s.carrier, scheduled: s.scheduledDelivery, late, to: `${s.dest} (${s.destCity})` },
           };
         }),
@@ -377,7 +381,7 @@ export const KPIS: KpiDef[] = [
     sources: ["shipments"], tile: false, locationAware: true,
     dims: [{ key: "carrier", label: "Carrier" }, { key: "mode", label: "Mode" }, { key: "direction", label: "Direction" }],
     refCols: [...portalCols, { key: "weight", label: "Weight (lb)", unit: "units" }],
-    facts: (c) => portalFacts(c, ["outbound", "inbound", "own"]).filter((f) => Number(f.ref.weight) > 0).map((f) => ({ ...f, den: Number(f.ref.weight) })),
+    facts: (c) => portalFacts(c, ["outbound", "dropship", "inbound", "between"]).filter((f) => Number(f.ref.weight) > 0).map((f) => ({ ...f, den: Number(f.ref.weight) })),
   },
   {
     id: "count_adjustments", name: "Count Adjustments", group: "Inventory", unit: "usd", agg: "sum", better: "near0",
@@ -460,7 +464,7 @@ export const KPI_BY_ID = new Map(KPIS.map((k) => [k.id, k]));
 export function portalGap(c: Ctx, def: KpiDef, loc: string): string | null {
   if (loc === "All" || !def.sources.includes("shipments")) return null;
   // Same rule the freight KPIs use to assign a shipment to a site: outbound by origin, inbound by destination
-  if (c.shipments.some((s) => (s.dir === "inbound" ? s.destLoc : s.originLoc) === loc)) return null;
+  if (c.shipments.some((s) => siteOf(s) === loc)) return null;
   return `No freight-portal shipments for ${loc}. Its freight cost isn't in any uploaded report.`;
 }
 
