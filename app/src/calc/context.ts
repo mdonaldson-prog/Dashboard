@@ -33,6 +33,8 @@ export interface Ctx {
   product: (sku: string, name?: string) => Product | undefined;
   category: (sku: string, name?: string) => string;
   lineClass: (l: SoLine, o: SalesOrder) => LineClass;
+  /** SKUs used as a component in any active BOM. */
+  bomComponents: Set<string>;
   shipments: ShipmentX[];
   coverage: Partial<Record<ReportKind, { min: string; max: string }>>;
   latest: string; // newest transaction date across dated reports
@@ -107,7 +109,7 @@ export function buildContext(ds: Dataset, s: Settings): Ctx {
   const unclassifiedCarriers = [...new Set(ds.salesOrders.map((o) => o.carrier).filter((c) => c && !s.carrierOverrides[c.toLowerCase()] && defaultCarrierClass(c) === null))].sort();
 
   return {
-    ds, s, holidays, orders, linesByOrder, product, category, lineClass, shipments, coverage, latest,
+    ds, s, holidays, orders, linesByOrder, product, category, lineClass, bomComponents: new Set(ds.bom.map((b) => b.component)), shipments, coverage, latest,
     currentWeek, defaultWeek: addDays(currentWeek, -7), snapshotDate: latest, locations, unclassifiedCarriers,
   };
 }

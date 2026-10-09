@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { AppApi } from "../App";
 import { addDays, monthLabel, monthOf, shortDate, weekLabel } from "../calc/dates";
-import { breakdown, coverageOf, KPIS, series, valueOf, type Grain, type KpiDef } from "../calc/kpis";
+import { breakdown, coverageOf, KPIS, portalGap, series, valueOf, type Grain, type KpiDef } from "../calc/kpis";
 import { REPORTS } from "../data/model";
 import { BreakdownChart, ProductionChart, TrendChart } from "../ui/charts";
 import { Card, DataTable, Seg, type Col } from "../ui/components";
@@ -77,6 +77,7 @@ export function Explorer(props: { api: AppApi; def: KpiDef }) {
           )}
         >
           <p class="definition" style={{ marginTop: 0 }}>{def.description}</p>
+          {portalGap(c, def, api.loc) && <p class="badge warn" style={{ whiteSpace: "normal", marginTop: 0 }}>{portalGap(c, def, api.loc)} Choose "All locations" to see freight for DFW and Houston.</p>}
           <div class="row" style={{ marginBottom: 12 }}>
             <span class="chip" style={{ cursor: "default" }}>{selLabel}</span>
             {period && <button class="btn small" onClick={() => setPeriod(null)}><IconX /> Show whole range</button>}

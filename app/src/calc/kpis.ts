@@ -51,9 +51,11 @@ const median = (xs: number[]) => {
 };
 const MO_LABEL = { blend: "Blend", fill: "Fill", kit: "Kit (manual)", kit_auto: "Kit (auto-built at fulfillment)", other: "Unclassified" };
 
-const mfgFacts = (types: string[]) => (c: Ctx): Fact[] =>
+/** Manufacturing output. `finishedOnly` drops rows whose product is a component in another
+ *  product's BOM (boxes, pails, lids, Part B fills recorded on kit orders), so only end products count. */
+const mfgFacts = (types: string[], finishedOnly = false) => (c: Ctx): Fact[] =>
   c.ds.mfgOrders
-    .filter((m) => types.includes(m.type) && m.completedDate)
+    .filter((m) => types.includes(m.type) && m.completedDate && !(finishedOnly && c.bomComponents.has(m.sku)))
     .map((m) => ({
       date: m.completedDate,
       num: m.qty,
@@ -174,22 +176,22 @@ export const KPIS: KpiDef[] = [
     id: "units_blended", name: "Units Blended", group: "Production", unit: "units", agg: "sum", better: "up",
     description: "Units on Blend manufacturing orders completed in the period (MO numbers starting BLEND-).",
     sources: ["mfgOrders"], tile: true, locationAware: false,
-    dims: [{ key: "category", label: "Category" }, { key: "product", label: "Product" }],
+    dims: [{ key: "product", label: "Product" }],
     refCols: mfgCols, facts: mfgFacts(["blend"]),
   },
   {
     id: "units_filled", name: "Units Filled", group: "Production", unit: "units", agg: "sum", better: "up",
     description: "Units on Fill manufacturing orders completed in the period (MO numbers starting FILL-, including typos FFILL/FIL).",
     sources: ["mfgOrders"], tile: true, locationAware: false,
-    dims: [{ key: "category", label: "Category" }, { key: "product", label: "Product" }],
+    dims: [{ key: "product", label: "Product" }],
     refCols: mfgCols, facts: mfgFacts(["fill"]),
   },
   {
     id: "units_kitted", name: "Units Kitted", group: "Production", unit: "units", agg: "sum", better: "up",
-    description: "Units on Kit manufacturing orders completed in the period: manual kits (KIT-) plus kits auto-built when a sales order is fulfilled (MO- numbers).",
+    description: "Finished kits completed in the period: manual kits (KIT-) plus kits auto-built when a sales order is fulfilled (MO- numbers). Components made on kit orders (boxes, pails, lids, Part B fills, anything used in another product's BOM) are not counted.",
     sources: ["mfgOrders"], tile: true, locationAware: false,
-    dims: [{ key: "type", label: "Kit type" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }],
-    refCols: mfgCols, facts: mfgFacts(["kit", "kit_auto"]),
+    dims: [{ key: "product", label: "Product" }],
+    refCols: mfgCols, facts: mfgFacts(["kit", "kit_auto"], true),
     extras: (f) => [
       { label: "Manual", value: sum(f.filter((x) => x.dims.type === MO_LABEL.kit).map((x) => x.num)), unit: "units" },
       { label: "Auto-built", value: sum(f.filter((x) => x.dims.type === MO_LABEL.kit_auto).map((x) => x.num)), unit: "units" },
@@ -228,21 +230,21 @@ export const KPIS: KpiDef[] = [
     id: "units_sold", name: "Units Sold", group: "Sales & fulfillment", unit: "units", agg: "sum", better: "up",
     description: "Units of stocked items on sales orders placed in the period. Excluded: items shipped from another location (per-lb flake from Torginol), non-stocked items and fees, tax and adjustment lines, quotes and cancelled orders.",
     sources: ["salesOrders"], tile: true, locationAware: true,
-    dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }, { key: "customer", label: "Customer" }],
+    dims: [{ key: "location", label: "Location" }, { key: "product", label: "Product" }, { key: "customer", label: "Customer" }],
     refCols: soCols("Ordered"), facts: (c) => soLineFacts(c, "order", ["item"], "qty", true),
   },
   {
     id: "units_shipped", name: "Units Shipped", group: "Sales & fulfillment", unit: "units", agg: "sum", better: "up",
     description: "Units of stocked items shipped from your locations on orders fulfilled in the period (fulfillment date from the Shipped report). Items shipped from another location (per-lb flake from Torginol) and non-stocked items are excluded.",
     sources: ["shipped", "salesOrders"], tile: true, locationAware: true,
-    dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }, { key: "customer", label: "Customer" }],
+    dims: [{ key: "location", label: "Location" }, { key: "product", label: "Product" }, { key: "customer", label: "Customer" }],
     refCols: soCols("Fulfilled"), facts: (c) => soLineFacts(c, "fulfilled", ["item"], "qty", true),
   },
   {
     id: "total_sales", name: "Total Sales", group: "Sales & fulfillment", unit: "usd", agg: "sum", better: "up",
     description: "All item line amounts (including items shipped from another location, non-stocked items and fees) plus \"Adjustment from imported order\" lines, by order date. Tax, quotes and cancelled orders are excluded.",
     sources: ["salesOrders"], tile: false, locationAware: true,
-    dims: [{ key: "lineType", label: "Line type" }, { key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "customer", label: "Customer" }],
+    dims: [{ key: "lineType", label: "Line type" }, { key: "location", label: "Location" }, { key: "customer", label: "Customer" }],
     refCols: soCols("Ordered"),
     facts: (c) => soLineFacts(c, "order", ["item", "adjustment"], "subtotal"),
   },
@@ -403,7 +405,7 @@ export const KPIS: KpiDef[] = [
     id: "dormant_inventory", name: "Dormant Inventory", group: "Inventory", unit: "usd", agg: "sum", better: "down",
     description: "Value of stock on hand with no movement in the last 120 days: no sales of the item, no manufacturing of it, and no use as a BOM component. Value = on hand × product cost, as of the latest upload.",
     sources: ["stockLevels", "products", "salesOrders", "mfgOrders"], tile: true, pointInTime: true, locationAware: true,
-    dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }],
+    dims: [{ key: "location", label: "Location" }, { key: "product", label: "Product" }],
     refCols: [
       { key: "location", label: "Location" }, { key: "product", label: "Product" }, { key: "sku", label: "SKU" }, { key: "lastCounted", label: "Last counted" },
       { key: "qty", label: "On hand", unit: "units" }, { key: "cost", label: "Unit cost", unit: "usd" }, { key: "value", label: "Value", unit: "usd" },
@@ -430,7 +432,7 @@ export const KPIS: KpiDef[] = [
     id: "inventory_value", name: "Current Inventory Value", group: "Inventory", unit: "usd", agg: "sum", better: "none",
     description: "On-hand quantity × product cost from the latest Stock Levels and Product Details uploads. Negative on-hand is excluded. Items with $0 or blank cost add nothing until their cost is filled in inFlow.",
     sources: ["stockLevels", "products"], tile: true, pointInTime: true, locationAware: true,
-    dims: [{ key: "location", label: "Location" }, { key: "category", label: "Category" }, { key: "product", label: "Product" }],
+    dims: [{ key: "location", label: "Location" }, { key: "product", label: "Product" }],
     refCols: [
       { key: "location", label: "Location" }, { key: "sublocation", label: "Sublocation" }, { key: "product", label: "Product" }, { key: "sku", label: "SKU" },
       { key: "qty", label: "On hand", unit: "units" }, { key: "cost", label: "Unit cost", unit: "usd" }, { key: "value", label: "Value", unit: "usd" },
@@ -452,6 +454,15 @@ export const KPIS: KpiDef[] = [
 ];
 
 export const KPI_BY_ID = new Map(KPIS.map((k) => [k.id, k]));
+
+/** Freight KPIs come from the freight portal. If a site never appears in it (no shipments from or
+ *  to it), its freight cost isn't in any uploaded report: say so instead of showing $0. */
+export function portalGap(c: Ctx, def: KpiDef, loc: string): string | null {
+  if (loc === "All" || !def.sources.includes("shipments")) return null;
+  // Same rule the freight KPIs use to assign a shipment to a site: outbound by origin, inbound by destination
+  if (c.shipments.some((s) => (s.dir === "inbound" ? s.destLoc : s.originLoc) === loc)) return null;
+  return `No freight-portal shipments for ${loc}. Its freight cost isn't in any uploaded report.`;
+}
 
 // ---------- Aggregation ----------
 

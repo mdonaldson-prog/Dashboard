@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import type { AppApi } from "../App";
 import { addDays, longDate, shortDate, weekLabel } from "../calc/dates";
-import { factsIn, KPIS, series, type KpiDef } from "../calc/kpis";
+import { factsIn, KPIS, portalGap, series, type KpiDef } from "../calc/kpis";
 import { STATUS_LABEL, targetStatus } from "../calc/targets";
 import { REPORTS, type ReportKind } from "../data/model";
 import { ProductionChart } from "../ui/charts";
@@ -20,6 +20,16 @@ function Tile(props: { api: AppApi; def: KpiDef }) {
         <div class="tile-label">{def.name}</div>
         <div class="tile-value muted">—</div>
         <div class="tile-note">Needs {missing.map((k) => REPORTS[k].label).join(" + ")}</div>
+      </button>
+    );
+  }
+  const gap = portalGap(api.c, def, api.loc);
+  if (gap) {
+    return (
+      <button class="tile" onClick={() => api.go(`kpi/${def.id}`)} aria-label={`${def.name}: ${gap}`}>
+        <div class="tile-label"><span>{def.name}</span></div>
+        <div class="tile-value muted">—</div>
+        <div class="tile-note">{gap}</div>
       </button>
     );
   }

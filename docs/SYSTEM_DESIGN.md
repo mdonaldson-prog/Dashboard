@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2.7 — agreed KPI targets built in (9 Oct 2026) |
+| **Status** | Draft v2.8 — finished-kit counting, no category breakdowns, freight site coverage note (9 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -378,7 +378,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Current Inventory Value | Σ on-hand quantity × product cost, as of the latest Stock Levels upload. Negative on-hand excluded. | 5 + 6 | Ready ($0-cost caveat) |
 | Units Blended | Σ quantity on Blend orders completed last week | 3 | Ready |
 | Units Filled | Σ quantity on Fill orders completed last week | 3 | Ready |
-| Units Kitted | Σ quantity on Kit orders completed last week, including kits auto-built at sales order fulfillment (`MO-` numbers) | 3 | Ready |
+| Units Kitted | Finished kits completed last week, including kits auto-built at sales order fulfillment (`MO-` numbers). Components made on kit orders (boxes, pails, lids, Part B fills; anything used in another product's BOM) are not counted. | 3 + BOM | Ready |
 | Order Fulfillment Speed | Average business days from order date to fulfillment date, for orders fulfilled last week. **Pickup orders are excluded.** Also shows the median and % fulfilled within 1 business day. | 1 + 2 | Ready |
 | Units Sold | Units of stocked items on orders placed last week. Excludes items that ship from another location (per-lb flake from Torginol) and non-stock items/fees. | 1 | Ready |
 | Units Shipped | Units of stocked items shipped from your sites on orders fulfilled last week (same exclusions) | 1 + 2 | Ready |
@@ -424,6 +424,8 @@ Agreed targets (9 Oct 2026), built in as defaults:
 | Units Filled | 8,250 per week or more | 7,838–8,250 |
 | Units Kitted | 1,000 per week or more | 950–1,000 |
 | Order Fulfillment Speed | 2 business days or less | 2.0–2.2 |
+
+**Freight by site:** The freight portal only has shipments leaving DFW (Carrollton) and Houston (Cypress). Aurora's freight cost isn't in any uploaded report, so with Aurora selected the freight tiles say so instead of showing $0.
 
 **Tracked without a target:** Count Adjustments, Dormant Inventory, Current Inventory Value, Units Sold, Units Shipped, Late Orders, Freight Paid vs Spent, Freight as % of Sales, Total Freight Spend, Carrier On-Time Delivery.
 
