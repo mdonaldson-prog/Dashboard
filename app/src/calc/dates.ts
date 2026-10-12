@@ -75,3 +75,45 @@ export const DEFAULT_HOLIDAYS = [
   "2026-01-01", "2026-05-25", "2026-07-03", "2026-09-07", "2026-11-26", "2026-11-27", "2026-12-24", "2026-12-25",
   "2027-01-01", "2027-05-31", "2027-07-05", "2027-09-06", "2027-11-25", "2027-11-26", "2027-12-24",
 ];
+
+// ---------- Periods (the global date filter) ----------
+
+export type PeriodKind = "day" | "week" | "month" | "year" | "custom";
+export interface Period { kind: PeriodKind; from: string; to: string }
+
+export const yearOf = (d: string) => d.slice(0, 4) + "-01-01";
+const monthEnd = (first: string) => addDays(monthOf(addDays(first, 32)), -1);
+
+/** The day / week / month / year containing `d`. */
+export function periodAt(kind: Exclude<PeriodKind, "custom">, d: string): Period {
+  if (kind === "day") return { kind, from: d, to: d };
+  if (kind === "week") { const m = mondayOf(d); return { kind, from: m, to: addDays(m, 6) }; }
+  if (kind === "month") { const m = monthOf(d); return { kind, from: m, to: monthEnd(m) }; }
+  return { kind, from: yearOf(d), to: d.slice(0, 4) + "-12-31" };
+}
+
+/** The period `n` steps before (negative) or after (positive). Custom ranges move by their own length. */
+export function shiftPeriod(p: Period, n: number): Period {
+  if (p.kind === "custom") { const len = daysBetween(p.from, p.to) + 1; return { kind: "custom", from: addDays(p.from, n * len), to: addDays(p.to, n * len) }; }
+  if (p.kind === "day") return periodAt("day", addDays(p.from, n));
+  if (p.kind === "week") return periodAt("week", addDays(p.from, 7 * n));
+  if (p.kind === "month") {
+    const y = +p.from.slice(0, 4), m = +p.from.slice(5, 7) - 1 + n;
+    return periodAt("month", iso(y + Math.floor(m / 12), ((m % 12) + 12) % 12 + 1, 1));
+  }
+  return periodAt("year", iso(+p.from.slice(0, 4) + n, 1, 1));
+}
+
+export function periodLabel(p: Period): string {
+  if (p.kind === "day") return `${dowName(p.from)} ${longDate(p.from)}`;
+  if (p.kind === "week") return `Week of ${weekLabel(p.from)}`;
+  if (p.kind === "month") return monthLabel(p.from);
+  if (p.kind === "year") return p.from.slice(0, 4);
+  return p.from.slice(0, 4) === p.to.slice(0, 4) ? `${shortDate(p.from)} – ${longDate(p.to)}` : `${longDate(p.from)} – ${longDate(p.to)}`;
+}
+
+/** Short noun for comparisons: "vs prior week". */
+export const PERIOD_NOUN: Record<PeriodKind, string> = { day: "day", week: "week", month: "month", year: "year", custom: "period" };
+
+/** Weekdays (Mon–Fri, not holidays) in the period, inclusive. Used to scale per-week targets. */
+export const workingDaysIn = (p: { from: string; to: string }, holidays: Set<string>) => businessDays(p.from, addDays(p.to, 1), holidays);

@@ -1,11 +1,13 @@
 import type { Ctx } from "../calc/context";
-import { monthLabel, shortDate, weekLabel } from "../calc/dates";
-import { KPI_BY_ID, series, type Fact, type Grain, type KpiDef, type Point } from "../calc/kpis";
+import { dowName, longDate, monthLabel, shortDate, weekLabel } from "../calc/dates";
+import { bucketEnd, KPI_BY_ID, series, type Fact, type Grain, type KpiDef, type Point } from "../calc/kpis";
 import { axisStyle, baseOption, Chart, esc, tipRow } from "./Chart";
 import { compact, full } from "./format";
 
-const periodLabel = (grain: Grain, key: string) => (grain === "week" ? shortDate(key) : monthLabel(key));
-const periodLong = (grain: Grain, key: string) => (grain === "week" ? `Week of ${weekLabel(key)}` : monthLabel(key));
+export const periodLabelShort = (grain: Grain, key: string) => (grain === "month" ? monthLabel(key) : shortDate(key));
+export const periodLong = (grain: Grain, key: string) => (grain === "day" ? `${dowName(key)} ${longDate(key)}` : grain === "week" ? `Week of ${weekLabel(key)}` : monthLabel(key));
+/** Bars outside the selected period are dimmed so it stands out in its context. */
+const inSel = (grain: Grain, key: string, sel?: { from: string; to: string }) => !sel || (key <= sel.to && bucketEnd(grain, key) >= sel.from);
 
 function movingAvg(vals: (number | null)[], n: number) {
   return vals.map((_, i) => {
@@ -15,16 +17,19 @@ function movingAvg(vals: (number | null)[], n: number) {
 }
 
 /** KPI over time: columns for totals, a line for rates; plus a 4-period moving average. */
-export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; target?: number; selected?: string; onSelect?: (key: string) => void }) {
+export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; target?: number; selected?: string; highlight?: { from: string; to: string }; short?: boolean; onSelect?: (key: string) => void }) {
   const { def, points, grain } = props;
   const vals = points.map((p) => p.value);
   const ma = movingAvg(vals, 4);
   const asBars = def.agg === "sum";
+  // Shade the selected period behind a line chart (bars dim instead)
+  const hiIdx = props.highlight && !props.selected ? points.map((p, i) => (inSel(grain, p.key, props.highlight) ? i : -1)).filter((i) => i >= 0) : [];
+  const shade = hiIdx.length && hiIdx.length < points.length ? [[{ xAxis: hiIdx[0] }, { xAxis: hiIdx[hiIdx.length - 1] }]] : null;
   return (
     <Chart
-      class="tall"
+      class={props.short ? "" : "tall"}
       label={`${def.name} by ${grain}`}
-      deps={[points, props.selected, props.target]}
+      deps={[points, props.selected, props.target, props.highlight]}
       onClick={(p) => props.onSelect?.(points[p.dataIndex]?.key)}
       build={(t) => ({
         ...baseOption(t),
@@ -39,7 +44,7 @@ export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; 
             return h;
           },
         },
-        xAxis: { type: "category", data: points.map((p) => periodLabel(grain, p.key)), ...axisStyle(t), splitLine: { show: false }, axisPointer: { type: asBars ? "shadow" : "line" } },
+        xAxis: { type: "category", data: points.map((p) => periodLabelShort(grain, p.key)), ...axisStyle(t), splitLine: { show: false }, axisPointer: { type: asBars ? "shadow" : "line" } },
         yAxis: {
           type: "value", ...axisStyle(t), axisLine: { show: false },
           axisLabel: { color: t.muted, fontSize: 11, formatter: (v: number) => compact(v, def.unit) },
@@ -53,7 +58,7 @@ export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; 
                   value: p.value,
                   itemStyle: {
                     color: t.series[0],
-                    opacity: p.partial ? 0.45 : props.selected && props.selected !== p.key ? 0.55 : 1,
+                    opacity: p.partial ? 0.45 : props.selected ? (props.selected === p.key ? 1 : 0.5) : inSel(grain, p.key, props.highlight) ? 1 : 0.5,
                     borderRadius: [4, 4, 0, 0],
                   },
                 })),
@@ -62,6 +67,7 @@ export function TrendChart(props: { def: KpiDef; points: Point[]; grain: Grain; 
             : {
                 name: def.name, type: "line", data: vals, connectNulls: false, symbol: "circle", symbolSize: 8, showSymbol: true,
                 lineStyle: { width: 2, color: t.series[0] }, itemStyle: { color: t.series[0], borderColor: t.surface, borderWidth: 2 },
+                ...(shade ? { markArea: { silent: true, itemStyle: { color: t.grid, opacity: 0.7 }, data: shade } } : {}),
                 ...(def.unit === "pct" && (def.id === "inventory_accuracy" || def.id === "freight_recovery")
                   ? { markLine: { silent: true, symbol: "none", label: { color: t.muted, fontSize: 10, formatter: "100%" }, lineStyle: { color: t.muted, type: "solid", width: 1, opacity: 0.6 }, data: [{ yAxis: 100 }] } }
                   : {}),
@@ -121,7 +127,7 @@ export function BreakdownChart(props: { def: KpiDef; rows: { key: string; value:
 }
 
 /** Production (stacked: blended, filled, kitted) vs demand (sold, shipped) in units — one axis, same unit. */
-export function ProductionChart(props: { c: Ctx; facts: (d: KpiDef) => Fact[]; from: string; to: string; grain: Grain; onSelect?: (k: string) => void }) {
+export function ProductionChart(props: { c: Ctx; facts: (d: KpiDef) => Fact[]; from: string; to: string; grain: Grain; highlight?: { from: string; to: string }; onSelect?: (k: string) => void }) {
   const ids = ["units_blended", "units_filled", "units_kitted", "units_sold", "units_shipped"];
   const names = ["Blended", "Filled", "Kitted", "Sold", "Shipped"];
   const ser = ids.map((id) => {
@@ -138,7 +144,7 @@ export function ProductionChart(props: { c: Ctx; facts: (d: KpiDef) => Fact[]; f
       </div>
       <Chart
         label="Production versus demand, units"
-        deps={[props.from, props.to, props.grain, props.facts]}
+        deps={[props.from, props.to, props.grain, props.facts, props.highlight]}
         onClick={(p) => props.onSelect?.(keys[p.dataIndex])}
         build={(t) => ({
           ...baseOption(t),
@@ -150,12 +156,12 @@ export function ProductionChart(props: { c: Ctx; facts: (d: KpiDef) => Fact[]; f
                 names.map((n, k) => tipRow(t.series[k], n, ser[k][i].value == null ? "—" : full(ser[k][i].value!, "units"))).join("");
             },
           },
-          xAxis: { type: "category", data: keys.map((k) => periodLabel(props.grain, k)), ...axisStyle(t), splitLine: { show: false } },
+          xAxis: { type: "category", data: keys.map((k) => periodLabelShort(props.grain, k)), ...axisStyle(t), splitLine: { show: false } },
           yAxis: { type: "value", ...axisStyle(t), axisLine: { show: false }, axisLabel: { color: t.muted, fontSize: 11, formatter: (v: number) => compact(v, "units") } },
           series: [
             ...[0, 1, 2].map((k) => ({
               name: names[k], type: "bar", stack: "prod", barMaxWidth: 24,
-              data: ser[k].map((p) => p.value),
+              data: ser[k].map((p) => ({ value: p.value, itemStyle: { opacity: inSel(props.grain, p.key, props.highlight) ? 1 : 0.5 } })),
               itemStyle: { color: t.series[k], borderColor: t.surface, borderWidth: 1, borderRadius: k === 2 ? [4, 4, 0, 0] : 0 },
             })),
             ...[3, 4].map((k) => ({

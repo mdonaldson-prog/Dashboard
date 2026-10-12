@@ -26,3 +26,11 @@ export function targetStatus(def: KpiDef, value: number | null, t: Target | unde
 }
 
 export const STATUS_LABEL: Record<Status, string> = { good: "On target", warn: "Near target", bad: "Off target" };
+
+/** Totals (units) have per-week targets: scale them to the period by working days (5 per week).
+ *  Rates and averages use the target as is. Returns undefined when the period has no working days. */
+export function periodTarget(def: KpiDef, t: Target | undefined, workingDays: number): Target | undefined {
+  if (!t || def.agg !== "sum") return t;
+  if (!workingDays) return undefined;
+  return { ...t, value: (t.value * workingDays) / 5 };
+}

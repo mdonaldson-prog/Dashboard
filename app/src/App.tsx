@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { buildContext, type Ctx } from "./calc/context";
 import { planCounts, type LocationPlan } from "./calc/counts";
-import { addDays, longDate, weekLabel } from "./calc/dates";
+import { addDays, dayOfWeek, longDate, periodAt, periodLabel, shiftPeriod, type Period } from "./calc/dates";
 import { filterLoc, KPI_BY_ID, type Fact, type KpiDef } from "./calc/kpis";
 import type { Dataset } from "./data/model";
 import { loadSettings, saveSettings, type Settings } from "./data/settings";
@@ -11,6 +11,7 @@ import { DataPage } from "./pages/DataPage";
 import { Explorer } from "./pages/Explorer";
 import { Home } from "./pages/Home";
 import { Welcome } from "./pages/Welcome";
+import { PeriodPicker } from "./ui/PeriodPicker";
 import { IconChart, IconClipboard, IconDatabase, IconHome } from "./ui/icons";
 
 export interface AppApi {
@@ -18,15 +19,27 @@ export interface AppApi {
   s: Settings;
   setS: (fn: (s: Settings) => Settings) => void;
   facts: (def: KpiDef, ignoreLoc?: boolean) => Fact[];
-  week: string;
-  setWeek: (w: string) => void;
-  weeks: string[];
+  /** The global date filter, and the same-length period before it (for comparisons). */
+  period: Period;
+  prior: Period;
+  setPeriod: (p: Period) => void;
+  /** First date any dated report covers. */
+  dataMin: string;
   loc: string;
+  setLoc: (l: string) => void;
   plans: LocationPlan[];
   go: (route: string) => void;
   reload: () => void;
   forget: () => Promise<void>;
   savedLocally: boolean;
+}
+
+/** The period to compare against: the same-length period before, or for a day, the previous working day. */
+function priorOf(p: Period, holidays: Set<string>): Period {
+  if (p.kind !== "day") return shiftPeriod(p, -1);
+  let d = addDays(p.from, -1);
+  for (let i = 0; i < 10 && (dayOfWeek(d) === 0 || dayOfWeek(d) === 6 || holidays.has(d)); i++) d = addDays(d, -1);
+  return periodAt("day", d);
 }
 
 const parseRoute = () => (location.hash.replace(/^#\/?/, "") || "home").split("/");
@@ -38,7 +51,7 @@ export function App(props: { demo: Dataset | null }) {
   const [s, setSRaw] = useState<Settings>(loadSettings);
   const [route, setRoute] = useState(parseRoute);
   const [loc, setLoc] = useState("All");
-  const [weekSel, setWeek] = useState("");
+  const [periodSel, setPeriod] = useState<Period | null>(null);
   const [theme, setTheme] = useState<string>(() => {
     try { return localStorage.getItem("execdash.theme") ?? "auto"; } catch { return "auto"; }
   });
@@ -80,17 +93,15 @@ export function App(props: { demo: Dataset | null }) {
         demo={props.demo}
         onLoaded={(d) => {
           setDs(d);
-          setWeek("");
+          setPeriod(null);
           location.hash = "#/home";
           if (d !== props.demo) saveDataset(d).then(setSavedLocally);
         }}
       />
     );
 
-  const weeks: string[] = [];
-  const firstWeek = c.coverage.salesOrders?.min ?? addDays(c.defaultWeek, -7 * 26);
-  for (let w = c.currentWeek; w >= firstWeek.slice(0, 10) && weeks.length < 60; w = addDays(w, -7)) weeks.push(w);
-  const week = weekSel || c.defaultWeek;
+  const dataMin = Object.values(c.coverage).reduce((m, cv) => (cv && cv.min < m ? cv.min : m), c.latest);
+  const period = periodSel ?? periodAt("week", c.defaultWeek);
 
   const allFacts = (def: KpiDef) => {
     let f = factCache.get(def.id);
@@ -98,7 +109,7 @@ export function App(props: { demo: Dataset | null }) {
     return f;
   };
   const api: AppApi = {
-    c, s, setS, week, setWeek, weeks, loc, plans,
+    c, s, setS, period, prior: priorOf(period, c.holidays), setPeriod, dataMin, loc, setLoc, plans,
     facts: (def, ignoreLoc) => (ignoreLoc ? allFacts(def) : filterLoc(def, allFacts(def), loc)),
     go: (r) => { location.hash = `#/${r}`; window.scrollTo(0, 0); },
     reload: () => { setDs(null); },
@@ -115,13 +126,13 @@ export function App(props: { demo: Dataset | null }) {
     { id: "data", label: "Data", icon: <IconDatabase /> },
   ];
   const titles: Record<string, [string, string]> = {
-    home: ["Operations overview", `Week of ${weekLabel(week)}`],
+    home: ["Operations overview", periodLabel(period)],
     kpi: [kpi?.name ?? "KPIs", "KPI explorer"],
     counts: ["Cycle count schedule", `Next ${s.counts.horizonWeeks} weeks · counting ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].filter((_, i) => s.counts.workingDays.includes(i)).join(", ")}`],
     data: ["Data & settings", `Data through ${longDate(c.latest)}`],
   };
   const [title, sub] = titles[page] ?? titles.home;
-  const showWeek = page === "home" || page === "kpi";
+  const showPeriod = page === "home" || page === "kpi";
   const showLoc = page !== "data" && page !== "counts";
 
   const navLinks = (cls: string) =>
@@ -148,23 +159,17 @@ export function App(props: { demo: Dataset | null }) {
             <h1>{title}</h1>
             <span class="small muted">{sub}</span>
           </div>
-          <div class="filters">
-            {showWeek && (
-              <select class="select" aria-label="Week" value={week} onChange={(e) => setWeek((e.target as HTMLSelectElement).value)}>
-                {weeks.map((w) => (
-                  <option value={w}>
-                    {w === c.currentWeek ? `This week (partial) · ${weekLabel(w)}` : w === c.defaultWeek ? `Last week · ${weekLabel(w)}` : weekLabel(w)}
-                  </option>
-                ))}
-              </select>
-            )}
-            {showLoc && (
-              <select class="select" aria-label="Location" value={loc} onChange={(e) => setLoc((e.target as HTMLSelectElement).value)}>
-                <option value="All">All locations</option>
-                {c.locations.map((l) => <option value={l}>{l}</option>)}
-              </select>
-            )}
-          </div>
+          {(showPeriod || showLoc) && (
+            <div class="filters" role="group" aria-label="Filters">
+              {showPeriod && <PeriodPicker value={period} onChange={setPeriod} latest={c.latest} dataMin={dataMin} lastWeek={c.defaultWeek} />}
+              {showLoc && (
+                <select class="select" aria-label="Location" value={loc} onChange={(e) => setLoc((e.target as HTMLSelectElement).value)}>
+                  <option value="All">All locations</option>
+                  {c.locations.map((l) => <option value={l}>{l}</option>)}
+                </select>
+              )}
+            </div>
+          )}
         </header>
         <main class="content">
           {page === "home" && <Home api={api} />}

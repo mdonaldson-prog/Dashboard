@@ -6,7 +6,7 @@ import type { ReportKind } from "../data/model";
 import { CARRIER_CLASS_LABEL } from "../data/settings";
 import type { Ctx, ShipmentX } from "./context";
 import { transactionCounts } from "./counts";
-import { addDays, businessDays, mondayOf, monthOf } from "./dates";
+import { addDays, businessDays, daysBetween, mondayOf, monthOf, type Period } from "./dates";
 
 export type Unit = "units" | "pct" | "days" | "usd" | "count";
 export type Agg = "sum" | "ratio" | "avg";
@@ -480,8 +480,43 @@ export function portalGap(c: Ctx, def: KpiDef, loc: string): string | null {
 
 // ---------- Aggregation ----------
 
-export type Grain = "week" | "month";
-export const bucketOf = (grain: Grain) => (d: string) => (grain === "week" ? mondayOf(d) : monthOf(d));
+export type Grain = "day" | "week" | "month";
+export const bucketOf = (grain: Grain) => (d: string) => (grain === "day" ? d : grain === "week" ? mondayOf(d) : monthOf(d));
+export const stepOf = (grain: Grain) => (k: string) => (grain === "day" ? addDays(k, 1) : grain === "week" ? addDays(k, 7) : monthOf(addDays(k, 32)));
+export const bucketEnd = (grain: Grain, k: string) => addDays(stepOf(grain)(k), -1);
+
+/** The natural chart grain for a range: days up to ~6 weeks, weeks up to ~6 months, then months. */
+export function grainFor(p: { from: string; to: string }): Grain {
+  const len = daysBetween(p.from, p.to) + 1;
+  return len <= 45 ? "day" : len <= 200 ? "week" : "month";
+}
+
+/** The trend shown around a period: the 14 days / 13 weeks / 12 months leading up to it,
+ *  or the period itself, bucketed, for a year or custom range. */
+export function contextWindow(p: Period, dataMin = ""): { grain: Grain; from: string; to: string } {
+  const w: { grain: Grain; from: string; to: string } =
+    p.kind === "day" ? { grain: "day", from: addDays(p.to, -13), to: p.to }
+    : p.kind === "week" ? { grain: "week", from: addDays(p.from, -7 * 12), to: p.to }
+    : p.kind === "month" ? { grain: "month", from: monthOf(addDays(p.from, -330)), to: p.to }
+    : p.kind === "year" ? { grain: "month", from: p.from, to: p.to }
+    : { grain: grainFor(p), from: p.from, to: p.to };
+  // Don't lead with empty buckets from before any report starts
+  const first = dataMin ? bucketOf(w.grain)(dataMin) : "";
+  if (first > w.from && first <= p.from) w.from = first;
+  return w;
+}
+
+/** One KPI value for a whole period, with whether the reports cover it fully. */
+export function periodValue(c: Ctx, def: KpiDef, facts: Fact[], p: { from: string; to: string }) {
+  if (def.pointInTime) return { value: facts.reduce((a, f) => a + f.num, 0), partial: false, facts };
+  const cov = coverageOf(c, def);
+  if (!cov || p.to < cov.min || p.from > cov.max) return { value: null, partial: false, facts: [] as Fact[] };
+  const fs = factsIn(facts, p.from, p.to);
+  let num = 0, den = 0;
+  for (const f of fs) { num += f.num; den += f.den; }
+  // Partial when the period runs past the newest data or starts before this KPI's reports do
+  return { value: valueOf(def, num, den, fs.length), partial: p.to > c.latest || p.from < cov.min, facts: fs };
+}
 
 export interface Point { key: string; value: number | null; num: number; den: number; n: number; partial: boolean }
 
@@ -527,9 +562,9 @@ export function series(c: Ctx, def: KpiDef, facts: Fact[], grain: Grain, from: s
   }
   const cov = coverageOf(c, def);
   const out: Point[] = [];
-  const step = (k: string) => (grain === "week" ? addDays(k, 7) : monthOf(addDays(k, 32)));
+  const step = stepOf(grain);
   for (let k = b(from); k <= to; k = step(k)) {
-    const end = grain === "week" ? addDays(k, 6) : addDays(step(k), -1);
+    const end = bucketEnd(grain, k);
     const a = acc.get(k) ?? { num: 0, den: 0, n: 0 };
     const covered = def.pointInTime ? a.n > 0 : !!cov && end >= cov.min && k <= cov.max;
     out.push({
@@ -561,4 +596,14 @@ export function breakdown(def: KpiDef, facts: Fact[], dim: string) {
   return [...g.entries()]
     .map(([key, a]) => ({ key, ...a, value: valueOf(def, a.num, a.den, a.n) }))
     .sort((x, y) => (def.agg === "sum" ? Math.abs(y.num) - Math.abs(x.num) : y.den - x.den || y.n - x.n));
+}
+
+/** Working days of a period that this KPI's reports actually cover (so a year in progress, or one
+ *  whose reports start in March, isn't measured against a full year's target). */
+export function coveredWorkingDays(c: Ctx, def: KpiDef, p: { from: string; to: string }): number {
+  const cov = coverageOf(c, def);
+  const from = cov && cov.min > p.from ? cov.min : p.from;
+  const end = cov && cov.max < c.latest ? cov.max : c.latest;
+  const to = end < p.to ? end : p.to;
+  return to < from ? 0 : businessDays(from, addDays(to, 1), c.holidays);
 }

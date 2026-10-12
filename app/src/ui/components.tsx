@@ -38,7 +38,7 @@ export function Seg<T extends string | number>(props: { value: T; options: { val
 export function Delta(props: { cur: number | null; prev: number | null; unit: Unit; better: Better; vs: string }) {
   const { cur, prev, unit, better } = props;
   if (cur == null || isNaN(cur)) return null;
-  if (prev == null || isNaN(prev)) return <span class="tile-delta delta-flat">No prior week to compare</span>;
+  if (prev == null || isNaN(prev)) return <span class="tile-delta delta-flat">Nothing earlier to compare</span>;
   const diff = cur - prev;
   const pctPts = unit === "pct" || unit === "days";
   const rel = prev !== 0 ? (diff / Math.abs(prev)) * 100 : NaN;

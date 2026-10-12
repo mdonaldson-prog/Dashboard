@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v3.0 — inbound (POs into Aurora) and transfer freight split out of customer freight, with their own tiles (9 Oct 2026) |
+| **Status** | Draft v3.1 — date filter by day, week, month, year or custom range; more interactive visuals on the Overview (12 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -467,7 +467,7 @@ Decision (2 Oct): Inventory Accuracy uses the **completed stock count report as-
 
 Clicking any tile, or opening **KPIs** in the menu, opens the KPI Explorer, which shows each KPI over time in depth.
 
-- **Time range:** last 13, 26, or 52 weeks, year to date, or custom. View by week or by month.
+- **Time range:** follows the global date filter (day, week, month, year, or custom); the trend chart shows the period in context, by day, week, or month.
 - **Trend chart:** the KPI over time, with a target line, a 4-week moving average, and markers on closed months (§7.2).
 - **Comparisons:** previous period, and the same week last year once a year of history exists.
 - **Breakdowns,** where they make sense:
@@ -929,14 +929,23 @@ A working prototype is in `app/`, built as the single self-contained HTML file d
 **Built**
 
 - **Import:** drag-and-drop, file picker, or folder picker. Each report is recognized by its columns, with a validation report and warnings. The last upload is saved in the browser (IndexedDB), with a "Forget saved data" option.
-- **Overview:** KPI tiles grouped into Inventory, Production, Sales & fulfillment, and Freight.
-  - Each tile shows the week's value, change from the prior week, a 13-week sparkline, and supporting figures.
-  - Red/amber/green target status, and an ⓘ with the definition.
-  - A production vs demand chart and the Attention list.
-  - **Print summary:** a one-page tile summary plus a chart and Attention page, sized for Letter.
+- **Date filter** (top bar, applies to the Overview and KPI Explorer): **Day, Week, Month, Year, or Custom**.
+  - Previous/next arrows and a list of every period with data. Custom takes a from/to date, with Last 30 days, Last 90 days and Year to date shortcuts.
+  - Comparisons are against the prior period of the same kind; a day is compared with the previous working day.
+  - Per-week unit targets scale to the period by working days (5 per week) that the reports cover, so a day, a month, or a year in progress gets a fair target.
+- **Overview:** an Attention card (top 3, expandable), then KPI tiles grouped into Inventory, Production, Sales & fulfillment, and Freight, each followed by its charts.
+  - Each tile shows the period's value, change from the prior period, a sparkline of the trend leading up to it, and supporting figures.
+  - Tiles with a target add a bullet meter (value bar, target tick) and red/amber/green status. ⓘ shows the definition.
+  - **Inventory:** value by site, active vs dormant (click a site to filter the whole dashboard to it), and count gains vs losses with the net line.
+  - **Production:** production vs demand.
+  - **Sales & fulfillment:** a daily-activity calendar heatmap (units shipped, units sold, or sales $; click a day to switch to it) and open orders by age (on time vs late).
+  - **Freight:** spend by flow (to customers, drop-ship, inbound, transfers) with a share bar for the period; legend items hide or show a flow, and the share bar opens that flow's KPI.
+  - Chart buckets overlapping the selected period are drawn at full strength, the rest dimmed. Clicking a bar makes it the selected period.
+  - **Print summary:** tiles, charts and Attention for the selected period, sized for Letter.
 - **KPI Explorer:** every KPI plus supporting metrics.
-  - 13, 26, or 52-week or full range, by week or month, with a 4-period average and the target line.
-  - Click a period to focus on it.
+  - Figures, breakdowns and records follow the selected period, with the change from the prior period and target status.
+  - Trend chart by day, week or month, around the period or over 6 months, 1 year or all data, with a 4-period average and the target line (per-week targets drawn per day or week).
+  - Click a bar to focus on it, then go back or make it the dashboard period.
   - Breakdowns by dimension, with click-to-filter.
   - Record-level drill-down with CSV export.
 - **Cycle counts:** velocity classes per location and a capacity check (holiday-aware) with ways to close the gap.
