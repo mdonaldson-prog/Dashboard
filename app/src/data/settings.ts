@@ -50,11 +50,14 @@ export interface Settings {
   dormantDays: number;
   /** From this pickup date, freight from your site to another of your sites is a transfer, not a customer order. */
   transferStartDate: string;
-  /** Overview tile arrangement, set in Customize layout: position within its section and width in grid columns. */
-  tileLayout: Record<string, TileLayout>;
+  /** Overview arrangement from Customize layout. null = the default (sections in their usual order). */
+  overviewLayout: OverviewLayout | null;
+  /** Earlier per-section tile arrangement (13 Oct build); read once to seed overviewLayout. */
+  tileLayout?: Record<string, { order: number; span: number }>;
 }
 
-export interface TileLayout { order: number; span: number }
+/** Blocks are KPI tiles ("kpi:<id>"), charts ("chart:<name>") and section headings ("head:<section>"). */
+export interface OverviewLayout { order: string[]; spans: Record<string, number>; hidden: string[] }
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 4,
@@ -91,7 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lateOrderDays: 3,
   dormantDays: 120,
   transferStartDate: "2026-08-01",
-  tileLayout: {},
+  overviewLayout: null,
 };
 
 const GROUND = ["ups", "fedex ground", "fedex home", "fedex 2-day", "fedex 2 day", "fedex priority overnight", "fedex overnight", "fedex standard overnight", "fedex express saver"];
@@ -160,6 +163,6 @@ export function mergeSettings(saved: Partial<Settings>): Settings {
     counts: { ...d.counts, ...(saved.counts ?? {}) },
     carrierOverrides: { ...(saved.carrierOverrides ?? {}) },
     velocityOverrides: { ...(saved.velocityOverrides ?? {}) },
-    tileLayout: { ...(saved.tileLayout ?? {}) },
+    overviewLayout: saved.overviewLayout ?? null,
   };
 }
