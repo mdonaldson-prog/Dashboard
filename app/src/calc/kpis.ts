@@ -318,12 +318,12 @@ export const KPIS: KpiDef[] = [
   },
   {
     id: "freight_pct_sales", name: "Freight as % of Sales", group: "Freight", unit: "pct", agg: "ratio", better: "down",
-    description: `Freight on shipments from your own sites (Aurora, DFW and Houston) to customers, from the freight portal ÷ Total Sales, in the period. Drop-ships from vendors (e.g. Torginol), inbound freight and transfers between your sites are not included. ${GROUND_NOTE}`,
+    description: `Freight to customers (freight portal: shipped from your sites plus drop-ships from vendors) ÷ Total Sales, in the period. Inbound freight and transfers between your sites are not included. ${GROUND_NOTE}`,
     sources: ["salesOrders", "shipments"], tile: true, locationAware: true,
     dims: [{ key: "location", label: "Location" }],
     refCols: [{ key: "date", label: "Date" }, { key: "doc", label: "Order / shipment" }, { key: "freight", label: "Freight", unit: "usd" }, { key: "sales", label: "Sales", unit: "usd" }],
     facts: (c) => [
-      ...portalFacts(c, ["outbound"], true).map((f) => ({ ...f, num: f.ref.cost as number, den: 0, ref: { date: f.date, doc: `Shipment ${f.ref.id}`, freight: f.ref.cost, sales: 0 } })),
+      ...portalFacts(c, ["outbound", "dropship"], true).map((f) => ({ ...f, num: f.ref.cost as number, den: 0, ref: { date: f.date, doc: `Shipment ${f.ref.id}`, freight: f.ref.cost, sales: 0 } })),
       ...soLineFacts(c, "order", ["item", "adjustment"], "subtotal").map((f) => ({ ...f, den: f.num, num: 0, ref: { date: f.date, doc: `Order ${f.ref.order}`, freight: 0, sales: f.ref.subtotal } })),
     ],
     extras: (f) => [
