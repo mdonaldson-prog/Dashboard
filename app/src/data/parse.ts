@@ -62,7 +62,7 @@ export function detectKind(headers: string[]): ReportKind | null {
   return null;
 }
 
-function readRows(name: string, bytes: Uint8Array): Row[] {
+export function readRows(name: string, bytes: Uint8Array): Row[] {
   if (/\.(xlsx|xls|xlsm)$/i.test(name)) {
     const wb = XLSX.read(bytes, { type: "array", cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
@@ -205,7 +205,10 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
     case "bom": {
       data.bom = rows
         .filter((r) => bool(r["IsActive"]))
-        .map<BomLine>((r) => ({ parent: s(r, "FinishedProductSKU"), component: s(r, "ComponentProductSKU"), qty: num0(r["Quantity"]) }));
+        .map<BomLine>((r) => ({
+          parent: s(r, "FinishedProductSKU"), component: s(r, "ComponentProductSKU"), qty: num0(r["Quantity"]),
+          parentName: s(r, "FinishedProduct"), componentName: s(r, "ComponentProduct"),
+        }));
       break;
     }
     case "shipments": {

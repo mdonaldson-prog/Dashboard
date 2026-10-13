@@ -102,6 +102,8 @@ export interface BomLine {
   parent: string;
   component: string;
   qty: number;
+  parentName?: string;
+  componentName?: string;
 }
 
 export interface Shipment {

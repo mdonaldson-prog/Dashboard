@@ -7,17 +7,17 @@ const DB = "execdash";
 const STORE = "datasets";
 const KEY = "last";
 
-function open(): Promise<IDBDatabase> {
+function open(db = DB): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
+    const req = indexedDB.open(db, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
-async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await open();
+async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>, dbName = DB): Promise<T> {
+  const db = await open(dbName);
   return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(STORE, mode);
     const req = fn(tx.objectStore(STORE));
@@ -49,4 +49,13 @@ export async function forgetDataset(): Promise<void> {
   } catch {
     /* nothing saved */
   }
+}
+
+/** The same store under another database name (the Forecast page keeps its own copy). */
+export function namedStore<T>(dbName: string) {
+  return {
+    save: async (v: T) => { try { await run("readwrite", (s) => s.put(v, KEY), dbName); return true; } catch { return false; } },
+    load: async () => { try { return ((await run("readonly", (s) => s.get(KEY), dbName)) as T | undefined) ?? null; } catch { return null; } },
+    forget: async () => { try { await run("readwrite", (s) => s.delete(KEY), dbName); } catch { /* nothing saved */ } },
+  };
 }

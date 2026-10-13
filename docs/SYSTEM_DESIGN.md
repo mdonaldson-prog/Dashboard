@@ -577,6 +577,18 @@ Runs in the browser (in a background worker) at every refresh. About 10,000 seri
 
 Reorder suggestions are a list to act on in inFlow, with a CSV export. Nothing is written to inFlow.
 
+### 7.4a Demand Forecast page (standalone)
+
+A simpler planning forecast, shipped ahead of §7.4 as its own file (`release/Forecast.html`, source in `app/src/forecast/`). It uses the same parser. Inputs: Sales Orders and BOM (required), plus Product Details or any SKU + Cost sheet (optional, for component $).
+
+1. **Finished-good demand:** sales-order lines by order date and selling location. Open orders count. Excluded: quotes, cancelled orders, tax and adjustment lines, fees (surcharges, discounts), and Torginol drop-ships. Lines with no location count for Aurora. "- Deactivated" SKUs merge into the active SKU.
+2. **Baseline:** average monthly qty and $ over the last N full months (default 3).
+3. **Forecast:** baseline × seasonality(month) × growth, through Dec 2027. Growth is +30% (editable) for 2027 and 0% for the rest of 2026. The 12-month seasonality index is editable and normalized to average 1. An optional switch first divides the baseline by its own months' seasonality. The current month = actual to date + forecast for its remaining days.
+4. **Components:** every month's FG quantity is exploded through all active BOM levels. *Intermediate* = has its own BOM; *Raw* = no BOM. Components are planned at Aurora (the manufacturing site), and each row keeps the location whose sales drive it. Raw $ = qty × Product Details cost. Intermediate $ is shown but not added to raw, since that would double-count.
+5. **Views:** location filter (All / Aurora / DFW / Houston), $ or Qty, quarter or month columns, totals rows, and a CSV export with every month as qty and $.
+
+Settings are kept in the browser's localStorage and the loaded files in IndexedDB (database `demand-forecast`). Nothing is uploaded.
+
 ### 7.5 Vendor Scorecards (monthly)
 
 | Metric | Calculation | Weight |
