@@ -50,7 +50,11 @@ export interface Settings {
   dormantDays: number;
   /** From this pickup date, freight from your site to another of your sites is a transfer, not a customer order. */
   transferStartDate: string;
+  /** Overview tile arrangement, set in Customize layout: position within its section and width in grid columns. */
+  tileLayout: Record<string, TileLayout>;
 }
+
+export interface TileLayout { order: number; span: number }
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 4,
@@ -87,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lateOrderDays: 3,
   dormantDays: 120,
   transferStartDate: "2026-08-01",
+  tileLayout: {},
 };
 
 const GROUND = ["ups", "fedex ground", "fedex home", "fedex 2-day", "fedex 2 day", "fedex priority overnight", "fedex overnight", "fedex standard overnight", "fedex express saver"];
@@ -155,5 +160,6 @@ export function mergeSettings(saved: Partial<Settings>): Settings {
     counts: { ...d.counts, ...(saved.counts ?? {}) },
     carrierOverrides: { ...(saved.carrierOverrides ?? {}) },
     velocityOverrides: { ...(saved.velocityOverrides ?? {}) },
+    tileLayout: { ...(saved.tileLayout ?? {}) },
   };
 }

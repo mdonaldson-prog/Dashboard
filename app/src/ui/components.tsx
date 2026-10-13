@@ -61,10 +61,10 @@ export function Delta(props: { cur: number | null; prev: number | null; unit: Un
 }
 
 /** 13-point sparkline: history in a recessive tone, the current period as an accent dot. */
-export function Sparkline(props: { values: (number | null)[]; highlight?: number }) {
+export function Sparkline(props: { values: (number | null)[]; highlight?: number; w?: number; h?: number }) {
   const vals = props.values;
-  const w = 96;
-  const h = 30;
+  const w = props.w ?? 96;
+  const h = props.h ?? 30;
   const nums = vals.filter((v): v is number => v != null && !isNaN(v));
   if (nums.length < 2) return <svg width={w} height={h} aria-hidden="true" />;
   const min = Math.min(...nums);

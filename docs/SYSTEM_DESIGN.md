@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v3.1 — date filter by day, week, month, year or custom range; more interactive visuals on the Overview (12 Oct 2026) |
+| **Status** | Draft v3.2 — movable, resizable Overview tiles; print summary trimmed to six headline KPIs (13 Oct 2026) |
 | **Date** | 2026-10-01 |
 | **Scope** | KPIs, demand forecasting, cycle count schedules, vendor scorecards, carrier scorecards |
 | **Data source** | inFlow Inventory / inFlow Manufacturing **file exports** (CSV/XLSX) |
@@ -941,7 +941,8 @@ A working prototype is in `app/`, built as the single self-contained HTML file d
   - **Sales & fulfillment:** a daily-activity calendar heatmap (units shipped, units sold, or sales $; click a day to switch to it) and open orders by age (on time vs late).
   - **Freight:** spend by flow (to customers, drop-ship, inbound, transfers) with a share bar for the period; legend items hide or show a flow, and the share bar opens that flow's KPI.
   - Chart buckets overlapping the selected period are drawn at full strength, the rest dimmed. Clicking a bar makes it the selected period.
-  - **Print summary:** tiles, charts and Attention for the selected period, sized for Letter.
+  - **Customize layout:** drag tiles to reorder them within their section and drag a tile's right edge to make it 1–4 columns wide (wider tiles show a longer trend line and more figures). Arrow and size buttons do the same on touch screens and by keyboard. The layout is saved with the settings (and in settings export/import); Reset layout restores the default.
+  - **Print summary:** one Letter page with six headline KPIs for the selected period and location: Inventory Accuracy, Units Blended, Units Filled, Units Kitted, Order Fulfillment Speed, and Freight Paid vs Spent (decided 13 Oct).
 - **KPI Explorer:** every KPI plus supporting metrics.
   - Figures, breakdowns and records follow the selected period, with the change from the prior period and target status.
   - Trend chart by day, week or month, around the period or over 6 months, 1 year or all data, with a 4-period average and the target line (per-week targets drawn per day or week).

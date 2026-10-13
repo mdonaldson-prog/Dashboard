@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { AppApi } from "../App";
 import { addDays, longDate, periodAt, periodLabel, PERIOD_NOUN, shortDate } from "../calc/dates";
 import { contextWindow, coverageOf, coveredWorkingDays, KPI_BY_ID, KPIS, periodValue, portalGap, series, type Grain, type KpiDef } from "../calc/kpis";
@@ -11,8 +11,9 @@ import { compact, full } from "../ui/format";
 import { IconAlert, IconCheck, IconInfo, IconPrint } from "../ui/icons";
 import { CalendarHeatmap, CountAdjustmentsChart, FreightFlowChart, InventoryBySite, Meter, OrderAging } from "../ui/overview";
 
-function Tile(props: { api: AppApi; def: KpiDef }) {
+function Tile(props: { api: AppApi; def: KpiDef; span?: number }) {
   const { api, def } = props;
+  const span = props.span ?? 1;
   const facts = api.facts(def);
   const nonLoc = api.loc !== "All" && !def.locationAware;
   const missing = def.sources.filter((k) => !api.c.ds.files.some((f) => f.kind === k));
@@ -54,7 +55,7 @@ function Tile(props: { api: AppApi; def: KpiDef }) {
   const target = periodTarget(def, api.s.targets[def.id], wd);
   const status = targetStatus(def, value, target);
   return (
-    <button class={`tile ${status ? `tile-${status}` : ""}`} onClick={() => api.go(`kpi/${def.id}`)} aria-label={`${def.name}: ${value == null ? "no data" : full(value, def.unit)}${status ? `, ${STATUS_LABEL[status]}` : ""}. Open details.`}>
+    <button class={`tile ${status ? `tile-${status}` : ""} ${span > 1 ? "tile-wide" : ""}`} onClick={() => api.go(`kpi/${def.id}`)} aria-label={`${def.name}: ${value == null ? "no data" : full(value, def.unit)}${status ? `, ${STATUS_LABEL[status]}` : ""}. Open details.`}>
       <div class="tile-label">
         <span>{def.name}</span>
         <span class="tile-info" title={def.description} aria-hidden="true"><IconInfo /></span>
@@ -72,12 +73,12 @@ function Tile(props: { api: AppApi; def: KpiDef }) {
       {!def.pointInTime && <Delta cur={value} prev={prev} unit={def.unit} better={def.better} vs={`vs prior ${PERIOD_NOUN[api.period.kind]}`} />}
       {extras.length > 0 && (
         <div class="tile-extras">
-          {extras.slice(0, 3).map((e) => <span>{e.label} <b>{compact(e.value, e.unit)}</b></span>)}
+          {extras.slice(0, span > 1 ? 6 : 3).map((e) => <span>{e.label} <b>{compact(e.value, e.unit)}</b></span>)}
         </div>
       )}
       <div class="tile-foot">
         <span class="tile-note">{nonLoc ? "All locations" : note}</span>
-        {!def.pointInTime && <Sparkline values={spark} />}
+        {!def.pointInTime && <Sparkline values={spark} w={span > 2 ? 300 : span > 1 ? 200 : 96} h={span > 1 ? 44 : 30} />}
       </div>
     </button>
   );
@@ -216,10 +217,143 @@ function SectionVisuals(props: { api: AppApi; group: Section }) {
   return null;
 }
 
+/** The headline KPIs on the printed summary, in this order. */
+const PRINT_KPIS = ["inventory_accuracy", "units_blended", "units_filled", "units_kitted", "fulfillment_speed", "freight_net"];
+
+/** Number of columns the tile grid currently has (it reflows with the window). */
+function useCols(ref: { current: HTMLElement | null }) {
+  const [cols, setCols] = useState(4);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const n = getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length;
+      if (n && el.clientWidth) setCols(n);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return cols;
+}
+
+/** A section's tiles, in the saved order and widths. In edit mode tiles can be dragged to reorder,
+ *  resized by dragging their right edge, or moved and resized with buttons (touch and keyboard). */
+function TileGrid(props: { api: AppApi; tiles: KpiDef[]; editing: boolean }) {
+  const { api, editing } = props;
+  const ref = useRef<HTMLDivElement>(null);
+  const cols = useCols(ref);
+  const layout = api.s.tileLayout;
+  const ids = props.tiles
+    .map((d, i) => ({ id: d.id, order: layout[d.id]?.order ?? i }))
+    .sort((a, b) => a.order - b.order)
+    .map((x) => x.id);
+  const spanOf = (id: string) => Math.max(1, Math.min(layout[id]?.span ?? 1, 4));
+  const [drag, setDrag] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
+  const [live, setLive] = useState<{ id: string; span: number } | null>(null); // span while resizing
+  const resizing = useRef(false); // a resize in progress must not start a tile drag
+
+  const save = (order: string[], spans: Record<string, number> = {}) =>
+    api.setS((s) => {
+      const tl = { ...s.tileLayout };
+      order.forEach((id, i) => (tl[id] = { order: i, span: spans[id] ?? tl[id]?.span ?? 1 }));
+      return { ...s, tileLayout: tl };
+    });
+  const move = (id: string, by: number) => {
+    const o = [...ids];
+    const i = o.indexOf(id);
+    const j = Math.max(0, Math.min(o.length - 1, i + by));
+    o.splice(i, 1);
+    o.splice(j, 0, id);
+    save(o);
+  };
+  const resize = (id: string, span: number) => save(ids, { [id]: Math.max(1, Math.min(4, span)) });
+
+  const onDrop = () => {
+    if (drag && drop && drag !== drop.id) {
+      const o = ids.filter((x) => x !== drag);
+      o.splice(o.indexOf(drop.id) + (drop.after ? 1 : 0), 0, drag);
+      save(o);
+    }
+    setDrag(null);
+    setDrop(null);
+  };
+
+  // Right-edge handle: each grid column crossed adds or removes one column of width
+  const startResize = (e: PointerEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const slot = (e.currentTarget as HTMLElement).parentElement!;
+    const grid = ref.current!;
+    const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+    const colW = (grid.clientWidth - gap * (cols - 1)) / cols;
+    const left = slot.getBoundingClientRect().left;
+    let span = spanOf(id);
+    resizing.current = true;
+    const onMove = (ev: PointerEvent) => {
+      span = Math.max(1, Math.min(cols, Math.round((ev.clientX - left + gap) / (colW + gap))));
+      setLive({ id, span });
+    };
+    const onUp = () => {
+      resizing.current = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setLive(null);
+      resize(id, span);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  return (
+    <div class={`tiles ${editing ? "tiles-editing" : ""}`} ref={ref} onDragOver={(e) => editing && e.preventDefault()} onDrop={onDrop}>
+      {ids.map((id, i) => {
+        const def = props.tiles.find((d) => d.id === id)!;
+        const span = Math.min(live?.id === id ? live.span : spanOf(id), cols);
+        const name = def.name;
+        return (
+          <div
+            class={`tile-slot ${drag === id ? "dragging" : ""} ${drop?.id === id ? (drop.after ? "drop-after" : "drop-before") : ""}`}
+            style={{ gridColumn: `span ${span}` }}
+            draggable={editing}
+            onDragStart={(e) => { if (resizing.current) { e.preventDefault(); return; } setDrag(id); e.dataTransfer?.setData("text/plain", id); if (e.dataTransfer) e.dataTransfer.effectAllowed = "move"; }}
+            onDragEnd={() => { setDrag(null); setDrop(null); }}
+            onDragOver={(e) => {
+              if (!editing || !drag) return;
+              e.preventDefault();
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const after = e.clientX > r.left + r.width / 2;
+              if (drop?.id !== id || drop.after !== after) setDrop({ id, after });
+            }}
+          >
+            <Tile api={api} def={def} span={span} />
+            {editing && (
+              <>
+                <div class="tile-tools" role="group" aria-label={`Arrange ${name}`}>
+                  <button class="btn small icon" aria-label={`Move ${name} earlier`} disabled={i === 0} onClick={() => move(id, -1)}>←</button>
+                  <button class="btn small icon" aria-label={`Move ${name} later`} disabled={i === ids.length - 1} onClick={() => move(id, 1)}>→</button>
+                  <span class="tile-size" aria-live="polite">{span}/{cols}</span>
+                  <button class="btn small icon" aria-label={`Make ${name} narrower`} disabled={span <= 1} onClick={() => resize(id, span - 1)}>−</button>
+                  <button class="btn small icon" aria-label={`Make ${name} wider`} disabled={span >= cols} onClick={() => resize(id, span + 1)}>+</button>
+                </div>
+                <div class="tile-resize" title="Drag to resize" aria-hidden="true" onPointerDown={(e) => startResize(e as unknown as PointerEvent, id)} />
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Home(props: { api: AppApi }) {
   const { api } = props;
   const items = attention(api);
   const [showAll, setShowAll] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const hasLayout = Object.keys(api.s.tileLayout).length > 0;
   return (
     <>
       <div class="print-only print-header">
@@ -229,13 +363,23 @@ export function Home(props: { api: AppApi }) {
           <span>Printed {longDate(new Date().toISOString().slice(0, 10))}</span>
         </div>
       </div>
+      <div class="print-only">
+        <div class="tiles print-tiles">{PRINT_KPIS.map((id) => <Tile api={api} def={k(id)} />)}</div>
+      </div>
       <div class="row no-print">
-        <span class="small muted">Click any tile for trends, breakdowns and records. Click chart bars or calendar days to change the period, and sites to filter by location.</span>
+        {editing ? (
+          <span class="small secondary"><b>Customizing layout.</b> Drag a tile to move it, or drag its right edge to resize. On touch screens, use the arrows and size buttons. Changes save automatically.</span>
+        ) : (
+          <span class="small muted">Click any tile for trends, breakdowns and records. Click chart bars or calendar days to change the period, and sites to filter by location.</span>
+        )}
         <div class="spacer" />
-        <button class="btn" onClick={() => window.print()}><IconPrint /> Print summary</button>
+        {editing && hasLayout && <button class="btn" onClick={() => api.setS((s) => ({ ...s, tileLayout: {} }))}>Reset layout</button>}
+        <button class={`btn ${editing ? "primary" : ""}`} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? "Done" : "Customize layout"}</button>
+        {!editing && <button class="btn" onClick={() => window.print()} title={`Prints ${PRINT_KPIS.length} headline KPIs`}><IconPrint /> Print summary</button>}
       </div>
       {items.length > 0 && (
         <Card
+          class="no-print"
           title="Needs attention"
           sub={`${items.length} item${items.length > 1 ? "s" : ""}`}
           actions={items.length > 3 && <button class="btn small no-print" onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer" : `Show all ${items.length}`}</button>}
@@ -257,9 +401,9 @@ export function Home(props: { api: AppApi }) {
       {SECTIONS.map((g) => {
         const tiles = KPIS.filter((d) => d.tile && d.group === g);
         return tiles.length ? (
-          <section class="tile-section">
+          <section class="tile-section no-print">
             <h2 class="section-title">{g}</h2>
-            <div class="tiles">{tiles.map((d) => <Tile api={api} def={d} />)}</div>
+            <TileGrid api={api} tiles={tiles} editing={editing} />
             <SectionVisuals api={api} group={g} />
           </section>
         ) : null;
