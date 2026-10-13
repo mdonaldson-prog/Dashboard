@@ -22,6 +22,9 @@ export const LOCATIONS = ["Aurora", "DFW", "Houston"] as const;
 export const MFG_LOCATION = "Aurora";
 export const UNASSIGNED_LOCATION = "Aurora";
 export const FORECAST_END = "2027-12";
+/** The planning year the growth % applies to (the forecast's last year). Fixed, so refreshing the
+ *  exports in 2027 keeps applying growth to 2027 instead of moving it past the horizon. */
+export const GROWTH_YEAR = FORECAST_END.slice(0, 4);
 
 export interface ForecastSettings {
   growthPct: number;
@@ -196,12 +199,13 @@ export function buildForecast(ds: Pick<Dataset, "salesOrders" | "soLines" | "bom
 
   // 3. Seasonality and growth
   const sv = Array.from({ length: 12 }, (_, i) => Math.max(0, +s.seasonality[i] || 0));
-  const mean = sv.reduce((a, b) => a + b, 0) / 12 || 1;
-  const seasonFactor = sv.map((v) => v / mean);
+  const mean = sv.reduce((a, b) => a + b, 0) / 12;
+  const seasonFactor = mean > 0 ? sv.map((v) => v / mean) : sv.map(() => 1); // all zero = flat
   const baselineSeason = baselineMonths.reduce((a, k) => a + seasonFactor[+k.slice(5, 7) - 1], 0) / baselineMonths.length || 1;
   const deseason = s.deseasonalizeBaseline ? 1 / baselineSeason : 1;
-  const growthYear = String(+latestMonth.slice(0, 4) + 1);
-  const factor = (k: string) => seasonFactor[+k.slice(5, 7) - 1] * deseason * (k.slice(0, 4) >= growthYear ? 1 + s.growthPct / 100 : 1);
+  const factor = (k: string) => seasonFactor[+k.slice(5, 7) - 1] * deseason * (k.slice(0, 4) === GROWTH_YEAR ? 1 + s.growthPct / 100 : 1);
+  const inGrowthYear = baselineMonths.filter((k) => k.startsWith(GROWTH_YEAR)).length;
+  if (inGrowthYear) notes.push(`${inGrowthYear} of the ${baselineMonths.length} baseline months are already in ${GROWTH_YEAR}, so part of the +${s.growthPct}% may already be in the run-rate. Consider lowering growth.`);
 
   const fg: Series[] = [];
   for (const [key, mm] of hist) {
@@ -235,6 +239,8 @@ export function buildForecast(ds: Pick<Dataset, "salesOrders" | "soLines" | "bom
     }
   }
   const components = [...comp.values()];
+  const other = [...new Set(fg.map((r) => r.location))].filter((l) => !(LOCATIONS as readonly string[]).includes(l));
+  if (other.length) notes.push(`Sales at other locations (${other.join(", ")}) count in "All locations" but have no filter of their own.`);
   if (cycles.size) notes.push(`BOM loops skipped: ${[...cycles].slice(0, 5).join(", ")}.`);
 
   return {

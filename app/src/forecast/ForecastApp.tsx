@@ -8,7 +8,7 @@ import { downloadCsv } from "../ui/csv";
 import { compact, full } from "../ui/format";
 import { IconDownload, IconUpload } from "../ui/icons";
 import {
-  buildForecast, DEFAULT_FORECAST_SETTINGS, DEFAULT_SEASONALITY, LOCATIONS, MFG_LOCATION, monthLabel, rollupBySku, sumUnits,
+  buildForecast, DEFAULT_FORECAST_SETTINGS, DEFAULT_SEASONALITY, GROWTH_YEAR, LOCATIONS, MFG_LOCATION, monthLabel, rollupBySku, sumUnits,
   type Forecast, type ForecastSettings, type Month, type Series,
 } from "./engine";
 import { addFiles, emptyForecastData, forecastStore, type ForecastData } from "./load";
@@ -141,11 +141,12 @@ function Main(props: { data: ForecastData; settings: ForecastSettings; setSettin
   const compRows = fc.components.filter((r) =>
     loc === "All" ? true : compMode === "planned" ? r.location === loc : r.drivenBy === loc,
   );
-  const growthYear = String(+fc.latest.slice(0, 4) + 1);
+  const growthYear = GROWTH_YEAR;
+  const curYear = fc.latest.slice(0, 4);
   const idx = (pred: (m: Month) => boolean) => fc.months.flatMap((m, i) => (pred(m) ? [i] : []));
   const yNext = idx((m) => m.key.startsWith(growthYear));
-  const restCur = idx((m) => m.kind !== "actual" && !m.key.startsWith(growthYear));
-  const actualCur = idx((m) => m.kind === "actual" && m.key.startsWith(fc.latest.slice(0, 4)));
+  const restCur = idx((m) => m.kind !== "actual" && m.key.startsWith(curYear));
+  const actualCur = idx((m) => m.kind === "actual" && m.key.startsWith(curYear));
   const raw = compRows.filter((r) => r.type === "Raw");
   const fgBase = fgRows.reduce((a, r) => a + r.baseline, 0);
   const baseLabel = `${monthLabel(fc.baselineMonths[0])}–${monthLabel(fc.baselineMonths.at(-1)!)}`;
@@ -177,7 +178,7 @@ function Main(props: { data: ForecastData; settings: ForecastSettings; setSettin
 
         <section class="tiles">
           <Tile label={`Finished goods ${growthYear}`} value={fmt(sumUnits(fgRows, yNext))} note={`units · ${locNote} · incl. +${settings.growthPct}% growth`} />
-          <Tile label={`Finished goods, rest of ${fc.latest.slice(0, 4)}`} value={fmt(sumUnits(fgRows, restCur))} note={actualCur.length ? `units · ${fmt(sumUnits(fgRows, actualCur))} actual through ${fc.months[actualCur.at(-1)!].label}` : undefined} />
+          <Tile label={`Finished goods, rest of ${curYear}`} value={fmt(sumUnits(fgRows, restCur))} note={actualCur.length ? `units · ${fmt(sumUnits(fgRows, actualCur))} actual through ${fc.months[actualCur.at(-1)!].label}` : undefined} />
           <Tile label="Baseline run-rate / month" value={fmt(fgBase)} note={`units · ${baseLabel} average`} />
           <Tile
             label={`Raw materials ${growthYear}`}
@@ -230,7 +231,7 @@ function Main(props: { data: ForecastData; settings: ForecastSettings; setSettin
           <ul class="fc-method">
             <li><b>Finished goods</b> are every product sold on a sales order, by order date and selling location. Open (unfulfilled) orders count; quotes, cancelled orders, tax/adjustment lines, fees ({fc.excluded.fees.toLocaleString()} lines) and Torginol drop-ships ({fc.excluded.dropship.toLocaleString()} lines) don't. All figures are units as sold (each, gallon, lb), so totals across SKUs mix units. <i>Manufactured</i> = has a BOM; <i>Resale</i> = no BOM.</li>
             <li><b>Baseline</b> = average units per month over {baseLabel}. {fc.blankLocationLines.toLocaleString()} lines with no location count for Aurora; "- Deactivated" SKUs are merged into the active SKU.</li>
-            <li><b>Forecast month</b> = baseline × seasonality × growth. Growth is +{settings.growthPct}% for {growthYear} and 0% for the rest of {fc.latest.slice(0, 4)}. Seasonality only moves volume between months{settings.deseasonalizeBaseline ? `; the baseline is divided by its own months' seasonality (${(fc.baselineSeason * 100).toFixed(0)}%) first` : `, so ${growthYear} totals baseline × 12 × ${(1 + settings.growthPct / 100).toFixed(2)}`}. The current month = actual to date + forecast for its remaining {Math.round(fc.partialFraction * 100)}%.</li>
+            <li><b>Forecast month</b> = baseline × seasonality × growth. Growth is +{settings.growthPct}% for {growthYear}{curYear < growthYear ? ` and 0% for the rest of ${curYear}` : ""}. Seasonality only moves volume between months{settings.deseasonalizeBaseline ? `; the baseline is divided by its own months' seasonality (${(fc.baselineSeason * 100).toFixed(0)}%) first` : `, so ${growthYear} totals baseline × 12 × ${(1 + settings.growthPct / 100).toFixed(2)}`}. The current month = actual to date + forecast for its remaining {Math.round(fc.partialFraction * 100)}%.</li>
             <li><b>BOM components</b> = each month's finished-good quantity exploded through every BOM level (active BOM lines only). <i>Intermediate</i> = a component with its own BOM (blends, sub-assemblies); <i>Raw</i> = purchased material and packaging. Raw quantities already include what intermediates are made of, so don't add the two.</li>
             <li><b>Locations:</b> DFW started selling in Jul 2026 and Houston in Aug 2026, so their {baseLabel} baseline includes ramp-up months and is likely understated. Use a shorter baseline under Assumptions to check.</li>
             {fc.notes.map((n) => <li>{n}</li>)}
@@ -448,7 +449,7 @@ function AssumptionsDrawer(props: { fc: Forecast; settings: ForecastSettings; on
   const s = props.settings;
   const set = (p: Partial<ForecastSettings>) => props.onChange({ ...s, ...p });
   const max = Math.max(...s.seasonality, 1);
-  const growthYear = String(+props.fc.latest.slice(0, 4) + 1);
+  const growthYear = GROWTH_YEAR;
   return (
     <Drawer title={<h2>Assumptions</h2>} onClose={props.onClose}>
       <div class="stack">
