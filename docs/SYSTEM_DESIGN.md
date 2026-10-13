@@ -384,7 +384,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Units Shipped | Units of stocked items shipped from your sites on orders fulfilled last week (same exclusions) | 1 + 2 | Ready |
 | Late Orders | Open (unfulfilled) orders more than **3 business days** old, as of the latest data. Also shows open orders, open units, and open value, with an age breakdown. | 1 + 2 | Ready |
 | Freight Paid vs Spent | **Net $ = paid − spent.** Paid: freight charged to customers on orders fulfilled last week by freight carriers or with carrier unknown. Spent: freight-portal cost of outbound shipments to customers. *Ground, inbound (POs into Aurora), and transfers between your sites are not included.* | 1 + 2 + 7 | Ready |
-| Freight as % of Sales | Freight to customers (outbound + drop-ship) ÷ Total Sales, last week. *Ground, inbound, and transfers are not included.* | 1 + 7 | Ready |
+| Freight as % of Sales | Freight on shipments from your own sites (Aurora, DFW, Houston) to customers ÷ Total Sales, last week. *Ground, drop-ships from vendors, inbound, and transfers are not included* (decided 13 Oct). | 1 + 7 | Ready |
 | Total Freight Spend | All freight-portal cost: to customers + drop-ship + inbound + transfers, with each part shown. *Ground shipments are not included.* | 7 | Ready |
 | Inbound Freight | Freight-portal cost of everything shipped to Aurora (purchase orders, from any origin, including DFW and Houston) and of vendor shipments to DFW or Houston. Part of Total Freight Spend only. | 7 | Ready |
 | Transfer Freight | Freight-portal cost of site-to-site shipments not going to Aurora (Aurora → DFW or Houston, DFW ↔ Houston) picked up on or after **1 Aug 2026** (the transfer start date, editable on the Data page). Earlier shipments on those lanes were customer orders and count as outbound. Part of Total Freight Spend only. | 7 | Ready |
@@ -410,7 +410,7 @@ At the assumed volumes (C4), five years of order lines and movements is about 1�
 | Late Orders | 87 of 120 open orders (45 open more than 30 business days); $257K open value |
 | Order Fulfillment Speed | 1.6 business days on average (median 1), 90% within 1 business day |
 | Freight Paid vs Spent | −$8,454 net (paid $9,128, spent $17,582) |
-| Freight as % of Sales | 3.5% |
+| Freight as % of Sales | 3.0% ($15,142 ÷ $509.5K) |
 | Total Freight Spend | $24.7K (customers $15,142, drop-ship $2,439, inbound $7,081, transfers $0) |
 | Inbound Freight | $7,081 (7 shipments) |
 | Transfer Freight | $0 that week; $5,580 over the 26 weeks to Sep 27 (6 shipments since 1 Aug) |
@@ -439,7 +439,7 @@ Agreed targets (9 Oct 2026), built in as defaults:
 | Your site | DFW or Houston, picked up on or after 1 Aug 2026 | Transfer | Origin |
 | Your site | DFW or Houston, before 1 Aug 2026 | Outbound to customers | Origin |
 
-Customer-freight KPIs (Freight Paid vs Spent, Freight as % of Sales) include outbound and drop-ship only. Inbound and transfers have their own tiles and are part of Total Freight Spend. If a selected site has no portal shipments at all, the tiles say so instead of showing $0.
+Freight Paid vs Spent includes outbound and drop-ship; Freight as % of Sales includes outbound from your own sites only. Inbound and transfers have their own tiles and are part of Total Freight Spend. If a selected site has no portal shipments at all, the tiles say so instead of showing $0.
 
 **Units Blended** counts the blended product each blend order makes (e.g. HyperBond Part A- BLENDED, Aspartic Slow Go Low Odor A), confirmed 9 Oct.
 
