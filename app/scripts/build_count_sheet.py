@@ -10,6 +10,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.comments import Comment
+from openpyxl.utils import get_column_letter as gcl
 
 out = sys.argv[1]
 with_data = len(sys.argv) > 2
@@ -63,8 +64,8 @@ lines = [
     ("4. On Settings, set 'Schedule start' to the Tuesday you want the new 4-week cycle to begin, and check the capacity line.", font),
     ("5. Check the Velocity tab (SKUs ranked by transactions, with their class and count day) and the Calendar tab (counts per day against capacity).", font),
     ("", font),
-    ("Every counting day", bold),
-    ("Open 'Daily Count Sheet', pick the date in cell B3, and print. System quantity isn't shown (blind count). Record the counts in inFlow's Stock Count as usual.", font),
+    ("Each week", bold),
+    ("Open 'Weekly Schedule' and pick the week in cell C3. It lists the SKUs for Tuesday to Friday. Set up each day's stock count in inFlow with those SKUs; counting and recording happen in inFlow.", font),
     ("", font),
     ("How velocity is worked out", bold),
     ("Transactions = sales order lines for the SKU over the last 90 days (to the latest order date in the file), at Aurora plus lines with no location (switchable on Settings). Quotes and cancelled orders are left out.", font),
@@ -255,39 +256,45 @@ cal[f"A{tr+3}"] = "To plan further ahead, select the last 4 rows and drag them d
 widths(cal, {"A": 12, "B": 7, "C": 7, "D": 11, "E": 11, "F": 11, "G": 11, "H": 9, "I": 10, "J": 10})
 cal.freeze_panes = "A5"
 
-# ======================================================================= Daily Count Sheet
-ds = wb.create_sheet("Daily Count Sheet")
-ds["A1"] = f'="Daily Cycle Count Sheet: "&{S_LOC}'; ds["A1"].font = title
-ds["A3"] = "Count date"; ds["A3"].font = bold
-ds["B3"] = f"=Calendar!A{first}"
-ds["B3"].number_format = "dddd, mmmm d, yyyy"; ds["B3"].font = Font(name=F, size=11, bold=True, color="0000FF"); ds["B3"].fill = input_fill; ds["B3"].border = box
-ds.merge_cells("B3:C3")
-dvd = DataValidation(type="list", formula1=f"=Calendar!$A${first}:$A${last_cal}", allow_blank=False); ds.add_data_validation(dvd); dvd.add("B3")
-ds["B3"].comment = Comment("Pick a date from the list, or type any Tuesday to Friday on or after the schedule start.", "Schedule")
-ds["D3"] = f'=IF(OR(J3<0,J3>3),"⚠ Not a counting day in this schedule","")'; ds["D3"].font = warn
-ds["J3"] = f"=IF(B3<{S_START},-1,MOD(B3-{S_START},7))"; ds["K3"] = f"=INT((B3-{S_START})/7)"
-for c in ("J3", "K3"): ds[c].font = Font(name=F, size=8, color="A6A6A6")
-ds["A4"] = "SKUs to count"; ds["A4"].font = bold
-ds["B4"] = f"=COUNT('Product Calc'!$Y$2:$Y${PR_L})"; ds["B4"].font = bold; ds["B4"].alignment = Alignment(horizontal="left")
-ds["C4"] = "=" + '&" · "&'.join(f"\"{k} \"&COUNTIFS('Product Calc'!$Y$2:$Y${PR_L},1,'Product Calc'!$O$2:$O${PR_L},\"{k}\")" for k in "ABCD")
-ds["C4"].font = font
-ds["A5"] = "Counted by: ____________________    Blind count: system quantity isn't shown. Count A SKUs before picking starts, and every bin for each SKU."
-ds["A5"].font = Font(name=F, size=9, italic=True)
-hdr(ds, 7, ["#", "SKU", "Product", "Category", "Class", "Counted qty", "UoM / notes"])
-for n in range(1, DAILY_ROWS + 1):
-    rr = 7 + n
-    m = f"MATCH($A{rr},'Product Calc'!$AA$2:$AA${PR_L},0)"
-    ds[f"A{rr}"] = f'=IF({n}<=$B$4,{n},"")'
-    for col, pc in (("B", "A"), ("C", "B"), ("D", "C"), ("E", "O")):
-        ds[f"{col}{rr}"] = f"=IF($A{rr}=\"\",\"\",INDEX('Product Calc'!${pc}$2:${pc}${PR_L},{m}))"
-    for col in "ABCDEFG":
-        c = ds[f"{col}{rr}"]; c.font, c.border = font, box
-    ds[f"A{rr}"].alignment = ds[f"E{rr}"].alignment = center
-cls_cf(ds, f"E8:E{7+DAILY_ROWS}", "$E8")
-widths(ds, {"A": 5, "B": 15, "C": 44, "D": 16, "E": 7, "F": 12, "G": 22, "J": 4, "K": 4})
-ds.freeze_panes = "A8"; ds.print_title_rows = "7:7"; ds.print_area = f"A1:G{7+DAILY_ROWS}"
-ds.page_setup.orientation = "portrait"; ds.page_setup.fitToWidth = 1; ds.page_setup.fitToHeight = 0
-ds.sheet_properties.pageSetUpPr.fitToPage = True
+# ======================================================================= Weekly Schedule
+cal["L4"] = "Week starts"; cal["L4"].font, cal["L4"].fill, cal["L4"].border = white_b, hdr_fill, box
+for i in range(WEEKS):
+    c = cal[f"L{first+i}"]; c.value = f"={S_START}+{i*7}"; c.number_format = "m/d/yyyy"; c.font, c.border = font, box
+cal.column_dimensions["L"].width = 12
+ws_ = wb.create_sheet("Weekly Schedule")
+ws_["A1"] = f'="Weekly Count Schedule: "&{S_LOC}'; ws_["A1"].font = title
+ws_["A3"] = "Week starting"; ws_["A3"].font = bold
+ws_["C3"] = f"=Calendar!L{first}"
+ws_["C3"].number_format = "ddd m/d/yyyy"; ws_["C3"].font = Font(name=F, size=11, bold=True, color="0000FF"); ws_["C3"].fill = input_fill; ws_["C3"].border = box
+dvw = DataValidation(type="list", formula1=f"=Calendar!$L${first}:$L${first+WEEKS-1}", allow_blank=False); ws_.add_data_validation(dvw); dvw.add("C3")
+ws_["C3"].comment = Comment("Pick a week from the list, or type any Tuesday on or after the schedule start.", "Schedule")
+ws_["E3"] = f'=IF(OR(C3<{S_START},MOD(C3-{S_START},7)<>0),"⚠ Pick a Tuesday on or after the schedule start ("&TEXT({S_START},"m/d/yyyy")&")","Week "&(MOD(Z3,4)+1)&" of the 4-week cycle · "&COUNT(\'Product Calc\'!$Y$2:$Y${PR_L})&" SKUs this week")'
+ws_["E3"].font = bold
+ws_["Z3"] = f"=INT((C3-{S_START})/7)"; ws_["Z3"].font = Font(name=F, size=8, color="A6A6A6")
+ws_["A4"] = "Each day's SKUs to set up as a stock count in inFlow. A SKUs first, then B, C, D; highest velocity first within each class."
+ws_["A4"].font = note
+days = ["Tue", "Wed", "Thu", "Fri"]
+for d in range(4):
+    c0 = 1 + d * 4
+    L0, L1, L2 = gcl(c0), gcl(c0 + 1), gcl(c0 + 2)
+    ws_.merge_cells(f"{L0}6:{L2}6")
+    h = ws_[f"{L0}6"]
+    h.value = f"=\"{days[d]} \"&TEXT($C$3+{d},\"m/d\")&\"  ·  \"&COUNTIFS('Product Calc'!$Y$2:$Y${PR_L},1,'Product Calc'!$S$2:$S${PR_L},{d})&\" SKUs\""
+    h.font, h.fill, h.alignment = white_b, hdr_fill, center
+    for j, lab in enumerate(["SKU", "Product", "Class"]):
+        c = ws_.cell(row=7, column=c0 + j, value=lab); c.font, c.fill, c.border, c.alignment = bold, calc_fill, box, center
+    for n in range(1, DAILY_ROWS + 1):
+        rr = 7 + n
+        m = f"MATCH({d * 10000 + n},'Product Calc'!$AA$2:$AA${PR_L},0)"
+        for j, pcol in enumerate(("A", "B", "O")):
+            c = ws_.cell(row=rr, column=c0 + j, value=f"=IFERROR(INDEX('Product Calc'!${pcol}$2:${pcol}${PR_L},{m}),\"\")")
+            c.font = font
+        ws_[f"{L2}{rr}"].alignment = center
+    cls_cf(ws_, f"{L2}8:{L2}{7+DAILY_ROWS}", f"${L2}8")
+    widths(ws_, {L0: 14, L1: 34, L2: 6, gcl(c0 + 3): 2})
+ws_.freeze_panes = "A8"; ws_.print_title_rows = "6:7"; ws_.print_area = f"A1:O{7+DAILY_ROWS}"
+ws_.page_setup.orientation = "landscape"; ws_.page_setup.fitToWidth = 1; ws_.page_setup.fitToHeight = 0
+ws_.sheet_properties.pageSetUpPr.fitToPage = True
 
 # ======================================================================= raw paste tabs
 so_t = wb.create_sheet("Sales Orders"); pr_t = wb.create_sheet("Products"); bom_t = wb.create_sheet("BOM")
@@ -346,13 +353,12 @@ sc.sheet_properties.tabColor = "A6A6A6"
 # ======================================================================= Product Calc
 pc = wb.create_sheet("Product Calc")
 lvl_cols = []  # rollup level columns: AB.. (level 1..LEVELS)
-from openpyxl.utils import get_column_letter as gcl
 base = 28  # AB
 for k in range(1, LEVELS + 1): lvl_cols.append(gcl(base + k - 1))
 heads = ["SKU", "Product", "Category", "Item type", "Auto-manufacture", "First row for SKU", "Stocked (classified)",
          "Sales lines", "BOM lines", "Transactions", "Rank", "Cumulative % before", "Calculated class", "Override", "Class",
          "Cadence (weeks)", "# in class", "_slot", "_day (0=Tue)", "_cycle week (0-based)", "Count day", "Cycle week",
-         "First count", "Next count", "Due on daily-sheet date", "Daily sort key", "Daily #"] + [f"Tx level {k}" for k in range(1, LEVELS + 1)]
+         "First count", "Next count", "Due in the selected week", "Sort key", "Day*10000 + position"] + [f"Tx level {k}" for k in range(1, LEVELS + 1)]
 hdr(pc, 1, heads)
 PR = f"Products!$A$1:$BZ${PR_L}"
 Q = lambda name: POS[("Products", name)]
@@ -389,9 +395,9 @@ for rr in range(2, PR_L + 1):
     pc[f"V{rr}"] = f'=IF(P{rr}="",IF(O{rr}="X","Not counted",IF(O{rr}="D","Off","")),IF(P{rr}=1,"Every week",T{rr}+1&" of "&P{rr}))'
     pc[f"W{rr}"] = f'=IF(P{rr}="","",{S_START}+T{rr}*7+S{rr})'
     pc[f"X{rr}"] = f'=IF(P{rr}="","",W{rr}+MAX(0,ROUNDUP((TODAY()-W{rr})/(P{rr}*7),0))*P{rr}*7)'
-    pc[f"Y{rr}"] = f"=IF(P{rr}=\"\",\"\",IF(AND('Daily Count Sheet'!$J$3=S{rr},MOD('Daily Count Sheet'!$K$3,P{rr})=T{rr}),1,\"\"))"
+    pc[f"Y{rr}"] = f"=IF(P{rr}=\"\",\"\",IF(MOD('Weekly Schedule'!$Z$3,P{rr})=T{rr},1,\"\"))"
     pc[f"Z{rr}"] = f'=IF(Y{rr}=1,FIND(O{rr},"ABCD")*100000+K{rr},"")'
-    pc[f"AA{rr}"] = f'=IF(Y{rr}=1,COUNTIFS($Y$2:$Y${L},1,$Z$2:$Z${L},"<="&Z{rr}),"")'
+    pc[f"AA{rr}"] = f'=IF(Y{rr}=1,S{rr}*10000+COUNTIFS($Y$2:$Y${L},1,$S$2:$S${L},S{rr},$Z$2:$Z${L},"<="&Z{rr}),"")'
     pc[f"L{rr}"].number_format = "0.0%"
     for c in ("W", "X"): pc[f"{c}{rr}"].number_format = "m/d/yyyy"
 widths(pc, {"A": 14, "B": 30})
