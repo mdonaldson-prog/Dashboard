@@ -10,6 +10,10 @@ It's a single self-contained HTML file. There's no server, no accounts, and no i
 2. Each week, export the 8 reports listed on its start screen, plus the BOM monthly. The [design doc, §5.4](docs/SYSTEM_DESIGN.md#54-weekly-upload-checklist) has the full checklist.
 3. Open `Dashboard.html` and drop the files in (or use **Open folder**).
 
+## Aurora cycle count schedule (Google Sheets)
+
+[`release/Aurora_Cycle_Count_Schedule.xlsx`](release/Aurora_Cycle_Count_Schedule.xlsx) is a spreadsheet version of the count schedule for Aurora: A SKUs weekly, B every 2 weeks, C every 4 weeks, counted Tuesday–Friday. Upload it to Google Drive and open it with Google Sheets. Each week, paste the Dashboard's `velocity-Aurora.csv` (Cycle counts → Velocity classes → CSV) into the Velocity tab. The **How to use** tab has the steps.
+
 ## Docs
 
 - [System Design Document](docs/SYSTEM_DESIGN.md): architecture, data inputs, KPI definitions, count scheduling, and the implementation plan.
