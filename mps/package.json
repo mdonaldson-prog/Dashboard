@@ -1,0 +1,26 @@
+{
+  "name": "master-production-schedule",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "baselines": "tsx scripts/build-baselines.ts",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "dependencies": {
+    "papaparse": "^5.7.0",
+    "preact": "^11.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^26.6.4",
+    "@types/papaparse": "^5.5.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

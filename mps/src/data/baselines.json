@@ -1,0 +1,1416 @@
+{
+ "source": "Completed MOs 2026-06-01 to 2026-10-23",
+ "from": "2026-06-01",
+ "to": "2026-10-23",
+ "items": {
+  "8600": {
+   "type": "BLEND",
+   "batch": 10,
+   "stem": "BLOCKADE",
+   "mos": 1
+  },
+  "63003": {
+   "type": "FILL",
+   "batch": 26,
+   "stem": "10XCARTRIDGE",
+   "mos": 8
+  },
+  "63005": {
+   "type": "FILL",
+   "batch": 1,
+   "stem": "10X-10GALLONKIT",
+   "mos": 1
+  },
+  "8100A-1": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "DT454ACLEAR1GAL",
+   "mos": 18
+  },
+  "8110B-1": {
+   "type": "FILL",
+   "batch": 150,
+   "stem": "DT454BTURBO1GAL",
+   "mos": 1
+  },
+  "9500A-1": {
+   "type": "FILL",
+   "batch": 78,
+   "stem": "ASP1001GALA",
+   "mos": 2
+  },
+  "9200A-1SG": {
+   "type": "FILL",
+   "batch": 250,
+   "stem": "ASP85LOWSG1GAL",
+   "mos": 1
+  },
+  "9200A-1C": {
+   "type": "FILL",
+   "batch": 120,
+   "stem": "ASP85LOW1GALCLEAR",
+   "mos": 13
+  },
+  "9200A-1MG": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "ASP85LOWMGPARTA1GAL",
+   "mos": 3
+  },
+  "8000B-1-CS": {
+   "type": "FILL",
+   "batch": 62,
+   "stem": "BONDB1GAL",
+   "mos": 2
+  },
+  "8100B-1": {
+   "type": "FILL",
+   "batch": 75,
+   "stem": "DT454B1GAL",
+   "mos": 8
+  },
+  "8100A-1MG": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "DT454MG1GAL",
+   "mos": 1
+  },
+  "8100A-1SG": {
+   "type": "FILL",
+   "batch": 90,
+   "stem": "DT454SG1GAL",
+   "mos": 6
+  },
+  "8100A-1T": {
+   "type": "FILL",
+   "batch": 40,
+   "stem": "DT454TAN1GAL",
+   "mos": 2
+  },
+  "6000B-1": {
+   "type": "FILL",
+   "batch": 45,
+   "stem": "ZIOB1GAL",
+   "mos": 2
+  },
+  "6000A-1": {
+   "type": "FILL",
+   "batch": 30,
+   "stem": "ZIOGLOSSA1GAL",
+   "mos": 3
+  },
+  "6100A-1": {
+   "type": "FILL",
+   "batch": 35,
+   "stem": "ZIOLOWGLOSSA1GAL",
+   "mos": 2
+  },
+  "8000A-1": {
+   "type": "FILL",
+   "batch": 80,
+   "stem": "BONDACLEAR1GAL",
+   "mos": 20
+  },
+  "8000A-1DB": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "BONDDB1GAL",
+   "mos": 4
+  },
+  "8000A-1MG": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "HYPERBONDMG1GAL",
+   "mos": 16
+  },
+  "8000A-1SG": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "BONDSG1GAL",
+   "mos": 17
+  },
+  "8000A-1T": {
+   "type": "FILL",
+   "batch": 75,
+   "stem": "BONDTAN1GALPARTA",
+   "mos": 8
+  },
+  "8000B-1": {
+   "type": "FILL",
+   "batch": 150,
+   "stem": "BONDB1GAL",
+   "mos": 20
+  },
+  "8300A-1": {
+   "type": "FILL",
+   "batch": 75,
+   "stem": "HYPERFLEXPARTA1GAL",
+   "mos": 5
+  },
+  "8300B-1": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "FLEXB1GAL",
+   "mos": 11
+  },
+  "8510A-1T": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "HYPERPRIMETAN1GAL",
+   "mos": 3
+  },
+  "8200A-1": {
+   "type": "FILL",
+   "batch": 96,
+   "stem": "HYPERREZA",
+   "mos": 8
+  },
+  "8200B-1": {
+   "type": "FILL",
+   "batch": 74,
+   "stem": "REZB1GAL",
+   "mos": 4
+  },
+  "7500B-1-I": {
+   "type": "FILL",
+   "batch": 150,
+   "stem": "POLYUREAB1GAL",
+   "mos": 2
+  },
+  "8500B-1": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "MV2112B1GAL",
+   "mos": 5
+  },
+  "8500A-1": {
+   "type": "FILL",
+   "batch": 152,
+   "stem": "MV2112A1GAL",
+   "mos": 4
+  },
+  "9020B-1": {
+   "type": "FILL",
+   "batch": 42,
+   "stem": "POLYUREACRACKPARTB1GAL",
+   "mos": 3
+  },
+  "7501A-1C": {
+   "type": "FILL",
+   "batch": 10,
+   "stem": "POLYUREACRACKFASTPARTA1GAL",
+   "mos": 1
+  },
+  "7502A-1C": {
+   "type": "FILL",
+   "batch": 133,
+   "stem": "POLYUREAB1GAL",
+   "mos": 2
+  },
+  "7502A-1G": {
+   "type": "FILL",
+   "batch": 75,
+   "stem": "POLYUREAMEDSPEEDGRAY1GAL",
+   "mos": 4
+  },
+  "7502A-1T": {
+   "type": "FILL",
+   "batch": 75,
+   "stem": "POLYUREAMEDSPEEDTAN1GAL",
+   "mos": 2
+  },
+  "7503A-1C": {
+   "type": "FILL",
+   "batch": 120,
+   "stem": "POLYUREASLOWCLEAR1GAL",
+   "mos": 1
+  },
+  "7503A-1G": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "POLYUREASLOWGRAY1GAL",
+   "mos": 3
+  },
+  "7503A-1T": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "POLYUREASLOWTAN1GAL",
+   "mos": 3
+  },
+  "7500B-1": {
+   "type": "FILL",
+   "batch": 140,
+   "stem": "POLYUREAB1GAL",
+   "mos": 13
+  },
+  "9020A-1": {
+   "type": "FILL",
+   "batch": 46,
+   "stem": "POLYUREAFASTCRACK1GALPARTA",
+   "mos": 2
+  },
+  "9400A-1": {
+   "type": "FILL",
+   "batch": 355,
+   "stem": "SGLOW1GAL",
+   "mos": 35
+  },
+  "9300A-1": {
+   "type": "FILL",
+   "batch": 225,
+   "stem": "SGREG1GAL",
+   "mos": 8
+  },
+  "9400A-1-EF": {
+   "type": "FILL",
+   "batch": 185,
+   "stem": "SGLOW1GAL-EASYFLO",
+   "mos": 3
+  },
+  "9500A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "ASPARTIC100PARTA",
+   "mos": 2
+  },
+  "9200A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "ASP85LOWPARTACLEAR",
+   "mos": 14
+  },
+  "9300A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "SLOWOREGA",
+   "mos": 10
+  },
+  "9400A": {
+   "type": "BLEND",
+   "batch": 2000,
+   "stem": "SGLOWPARTA",
+   "mos": 28
+  },
+  "8100A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "DT454ACLEAR",
+   "mos": 20
+  },
+  "8100A-MG": {
+   "type": "BLEND",
+   "batch": 107.5,
+   "stem": "DT454MGPARTA",
+   "mos": 2
+  },
+  "8100A-SG": {
+   "type": "BLEND",
+   "batch": 50,
+   "stem": "DT454SGPARTA",
+   "mos": 9
+  },
+  "8100A-T": {
+   "type": "BLEND",
+   "batch": 20,
+   "stem": "DT454TAN",
+   "mos": 4
+  },
+  "6000A": {
+   "type": "BLEND",
+   "batch": 51,
+   "stem": "ZIOGLOASSPARTA",
+   "mos": 5
+  },
+  "6100A": {
+   "type": "BLEND",
+   "batch": 50.5,
+   "stem": "ZIOLOWGLOSSA",
+   "mos": 2
+  },
+  "8000A-SG": {
+   "type": "BLEND",
+   "batch": 195.5,
+   "stem": "BONDASG",
+   "mos": 20
+  },
+  "8000A-DB": {
+   "type": "BLEND",
+   "batch": 111,
+   "stem": "BONDDBA",
+   "mos": 5
+  },
+  "8000A-MG": {
+   "type": "BLEND",
+   "batch": 222,
+   "stem": "HYPERBONDMGPARTA",
+   "mos": 17
+  },
+  "8000A-T": {
+   "type": "BLEND",
+   "batch": 142.5,
+   "stem": "HYPERBONDTANPARTA",
+   "mos": 10
+  },
+  "8000A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "HYPERBONDACLEAR(WITH828INSTEADOF863)",
+   "mos": 50
+  },
+  "8300A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "HYPERFLEXPARTA",
+   "mos": 5
+  },
+  "8200A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "HYPERREZPARTA",
+   "mos": 9
+  },
+  "8500A": {
+   "type": "BLEND",
+   "batch": 291,
+   "stem": "MV2112APARTA",
+   "mos": 4
+  },
+  "7502A-G": {
+   "type": "BLEND",
+   "batch": 330,
+   "stem": "POLYUREAMEDSPEEDGRAY",
+   "mos": 5
+  },
+  "7502A-T": {
+   "type": "BLEND",
+   "batch": 328.9,
+   "stem": "POLYUREAMEDSPEEDTANPARTA",
+   "mos": 3
+  },
+  "7503A": {
+   "type": "BLEND",
+   "batch": 625,
+   "stem": "POLYUREASLOWCLEARPARTA",
+   "mos": 9
+  },
+  "7503A-G": {
+   "type": "BLEND",
+   "batch": 330,
+   "stem": "POLYUREASLOWPARTAGRAY",
+   "mos": 13
+  },
+  "7503A-T": {
+   "type": "BLEND",
+   "batch": 311.5,
+   "stem": "POLYUREASLOWTANA",
+   "mos": 8
+  },
+  "9000B-1-CS": {
+   "type": "FILL",
+   "batch": 90,
+   "stem": "POLYASPARTICB'S",
+   "mos": 2
+  },
+  "8210B-1-CS": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "COREFLOWB1GAL",
+   "mos": 3
+  },
+  "8200B-1-CS": {
+   "type": "FILL",
+   "batch": 60,
+   "stem": "REZB/COREREZB1GAL",
+   "mos": 1
+  },
+  "9000B-1-EF": {
+   "type": "FILL",
+   "batch": 90,
+   "stem": "UNIVERSALB-EASYFLOW",
+   "mos": 4
+  },
+  "9000B-1-EW": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "UNIVB1GAL-EPOXYWORK",
+   "mos": 1
+  },
+  "8210A-1": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "HYPERFLOWA1GAL",
+   "mos": 7
+  },
+  "8210B-1": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "HYPERFLOWB1GAL",
+   "mos": 2
+  },
+  "8510B-1": {
+   "type": "FILL",
+   "batch": 150,
+   "stem": "HYPERPRIMEB1GAL",
+   "mos": 7
+  },
+  "9000B-1-I": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "POLYASPARTICB'S",
+   "mos": 5
+  },
+  "8720A-1": {
+   "type": "FILL",
+   "batch": 30,
+   "stem": "URETHANECEMENTPARTA1GAL",
+   "mos": 3
+  },
+  "8720B-1": {
+   "type": "FILL",
+   "batch": 58,
+   "stem": "URETHANECEMENTB1GAL",
+   "mos": 2
+  },
+  "9000B-1-RAD": {
+   "type": "FILL",
+   "batch": 120,
+   "stem": "UNIVB1GAL",
+   "mos": 1
+  },
+  "9000B-1": {
+   "type": "FILL",
+   "batch": 160,
+   "stem": "UNIVB1GAL",
+   "mos": 59
+  },
+  "9000B-2-CS": {
+   "type": "KIT",
+   "batch": 45,
+   "stem": "UNIVB/COREFLEXB'S2GALKIT",
+   "mos": 2
+  },
+  "8210A-2-CS": {
+   "type": "FILL",
+   "batch": 60,
+   "stem": "COREFLOW2GAL",
+   "mos": 3
+  },
+  "8210B-2-CS": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "COREFLOWB'S-2GALKIT",
+   "mos": 1
+  },
+  "8200B-2-CS": {
+   "type": "KIT",
+   "batch": 30,
+   "stem": "COREREZB2GALKIT",
+   "mos": 1
+  },
+  "8510A-2T-EW": {
+   "type": "FILL",
+   "batch": 35,
+   "stem": "HYPERPRIMETAN2GAL",
+   "mos": 3
+  },
+  "8720-2": {
+   "type": "KIT",
+   "batch": 48,
+   "stem": "URETHANECEMENT2GAL",
+   "mos": 2
+  },
+  "8210A-5": {
+   "type": "FILL",
+   "batch": 43,
+   "stem": "HYPERFLOWA5GAL",
+   "mos": 6
+  },
+  "8210B-5": {
+   "type": "FILL",
+   "batch": 33,
+   "stem": "HYPERFLOWB5GAL",
+   "mos": 4
+  },
+  "P2700-2Ga": {
+   "type": "KIT",
+   "batch": 37,
+   "stem": "POLYASPARTICB'S2GALKIT",
+   "mos": 53
+  },
+  "90100-1": {
+   "type": "FILL",
+   "batch": 20,
+   "stem": "EPOXYACCELERATOR1GAL",
+   "mos": 7
+  },
+  "90100-PT": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "EPOXYACCELERATOR1/2PINT",
+   "mos": 4
+  },
+  "8210-3C": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "HYPERFLOW3GALKIT",
+   "mos": 7
+  },
+  "8510A-MG": {
+   "type": "BLEND",
+   "batch": 133.5,
+   "stem": "HYPERPRIMEMEDGRAYPARTA",
+   "mos": 6
+  },
+  "8510A-T": {
+   "type": "BLEND",
+   "batch": 123.5,
+   "stem": "HYPERPRIMETANPARTA",
+   "mos": 4
+  },
+  "9010-1": {
+   "type": "FILL",
+   "batch": 12,
+   "stem": "POLYASPARTIC1GAL",
+   "mos": 1
+  },
+  "9011-1": {
+   "type": "FILL",
+   "batch": 3,
+   "stem": "POLYDECELERATOR1GAL",
+   "mos": 1
+  },
+  "7502A": {
+   "type": "BLEND",
+   "batch": 575,
+   "stem": "POLYUREAMEDIUMSPEEDPARTA",
+   "mos": 4
+  },
+  "8712-5": {
+   "type": "FILL",
+   "batch": 3,
+   "stem": "SILISEAL",
+   "mos": 1
+  },
+  "8720A-5": {
+   "type": "FILL",
+   "batch": 8,
+   "stem": "URETHANECEMENTA5GAL",
+   "mos": 2
+  },
+  "8720B-5": {
+   "type": "FILL",
+   "batch": 6,
+   "stem": "URETHANECEMENTB5GAL",
+   "mos": 1
+  },
+  "8100-3C": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "DT454CLEAR3GALKIT",
+   "mos": 13
+  },
+  "8110-3C": {
+   "type": "KIT",
+   "batch": 11,
+   "stem": "DT454TURBO3GALKIT",
+   "mos": 7
+  },
+  "8110-3T": {
+   "type": "KIT",
+   "batch": 20,
+   "stem": "DT454TUBROTAN3GALKIT",
+   "mos": 2
+  },
+  "8100-3MG": {
+   "type": "KIT",
+   "batch": 14,
+   "stem": "DT454MG3GALKIT",
+   "mos": 2
+  },
+  "8100-3T": {
+   "type": "KIT",
+   "batch": 2,
+   "stem": "DT454TAN3GAL",
+   "mos": 1
+  },
+  "8100A-5SG": {
+   "type": "FILL",
+   "batch": 8,
+   "stem": "DT454ASG5GAL",
+   "mos": 7
+  },
+  "8100A-5T": {
+   "type": "FILL",
+   "batch": 6,
+   "stem": "DT454A5GALTAN",
+   "mos": 5
+  },
+  "8100A-5MG": {
+   "type": "FILL",
+   "batch": 4,
+   "stem": "DT454MG5GAL",
+   "mos": 5
+  },
+  "8100A-5": {
+   "type": "FILL",
+   "batch": 46,
+   "stem": "DT454ACLEAR5GAL",
+   "mos": 21
+  },
+  "8100B-5": {
+   "type": "FILL",
+   "batch": 43,
+   "stem": "DT454B5GAL",
+   "mos": 8
+  },
+  "8110B-5": {
+   "type": "FILL",
+   "batch": 24,
+   "stem": "DT454BTURBO5GAL",
+   "mos": 1
+  },
+  "8100A-5W": {
+   "type": "FILL",
+   "batch": 4,
+   "stem": "DT454A5GALWHITE",
+   "mos": 1
+  },
+  "8100A-5SG-GFC": {
+   "type": "FILL",
+   "batch": 10,
+   "stem": "DT454ASG5GAL-GARAGEFLOORCOMP",
+   "mos": 1
+  },
+  "8100A-5MG-GFC": {
+   "type": "FILL",
+   "batch": 12,
+   "stem": "DT454MGA",
+   "mos": 1
+  },
+  "8100-3SG": {
+   "type": "KIT",
+   "batch": 23,
+   "stem": "DTSABLEGRAY3GAL",
+   "mos": 8
+  },
+  "8110-3SG": {
+   "type": "KIT",
+   "batch": 6,
+   "stem": "DT454TURBOSG3GAL",
+   "mos": 4
+  },
+  "6000-3C": {
+   "type": "KIT",
+   "batch": 11,
+   "stem": "ZIOGLOSS3GALKIT",
+   "mos": 5
+  },
+  "6100-3C": {
+   "type": "KIT",
+   "batch": 4,
+   "stem": "ZIOLOWGLOSS3GALKIT",
+   "mos": 6
+  },
+  "6000B-5": {
+   "type": "FILL",
+   "batch": 5,
+   "stem": "ZIOTHANEB5GAL",
+   "mos": 3
+  },
+  "6000A-5": {
+   "type": "FILL",
+   "batch": 5,
+   "stem": "ZIOGLOSSA5GAL",
+   "mos": 4
+  },
+  "6100A-5": {
+   "type": "FILL",
+   "batch": 3,
+   "stem": "ZIOLOWGLOSSA5GAL",
+   "mos": 2
+  },
+  "8000A-2C-CS": {
+   "type": "FILL",
+   "batch": 25,
+   "stem": "BONDCLEAR/COREBOND2GAL",
+   "mos": 5
+  },
+  "8000A-2MG-CS": {
+   "type": "FILL",
+   "batch": 48,
+   "stem": "BONDMG2GAL-CORESOURCE(COREBOND)",
+   "mos": 4
+  },
+  "8000A-2SG-CS": {
+   "type": "FILL",
+   "batch": 23,
+   "stem": "BONDSG2GAL-CORESOURCE(COREBOND)",
+   "mos": 5
+  },
+  "8000B-2-CS": {
+   "type": "KIT",
+   "batch": 31,
+   "stem": "COREBOND/BONDB2GALKIT",
+   "mos": 2
+  },
+  "8000-3C": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "BONDCLEAR3GALKIT",
+   "mos": 23
+  },
+  "8000-3DB": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "BONDDB3GALKIT",
+   "mos": 6
+  },
+  "8000-3MG": {
+   "type": "KIT",
+   "batch": 45,
+   "stem": "BONDMEDIUMGRAY",
+   "mos": 20
+  },
+  "8000-3SG": {
+   "type": "KIT",
+   "batch": 46,
+   "stem": "BONDSG3GALKIT",
+   "mos": 20
+  },
+  "8000-3T": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "BONDTAN3GALKIT",
+   "mos": 13
+  },
+  "8000A-5SG-GFC": {
+   "type": "FILL",
+   "batch": 18,
+   "stem": "BONDSG5GAL-THEGARAGEFLOORCOMP",
+   "mos": 1
+  },
+  "8000A-5C": {
+   "type": "FILL",
+   "batch": 34,
+   "stem": "HYPERBONDACLEAR5GAL",
+   "mos": 27
+  },
+  "8000A-5DB": {
+   "type": "FILL",
+   "batch": 7,
+   "stem": "BONDDB5GAL",
+   "mos": 4
+  },
+  "8000A-5MG": {
+   "type": "FILL",
+   "batch": 28,
+   "stem": "HYPERBONDMG5GALPARTA",
+   "mos": 16
+  },
+  "8000A-5SG": {
+   "type": "FILL",
+   "batch": 20,
+   "stem": "BONDSG5GAL",
+   "mos": 21
+  },
+  "8000A-5T": {
+   "type": "FILL",
+   "batch": 10,
+   "stem": "BONDTAN5GAL",
+   "mos": 9
+  },
+  "8000B-5": {
+   "type": "FILL",
+   "batch": 42,
+   "stem": "BONDB5GAL",
+   "mos": 23
+  },
+  "8710A": {
+   "type": "FILL",
+   "batch": 72,
+   "stem": "HYPERCUREA",
+   "mos": 15
+  },
+  "8710B": {
+   "type": "FILL",
+   "batch": 72,
+   "stem": "HYPERCUREB1QT",
+   "mos": 15
+  },
+  "8710-2QT": {
+   "type": "KIT",
+   "batch": 72,
+   "stem": "HYPERCURE",
+   "mos": 17
+  },
+  "8300-2": {
+   "type": "KIT",
+   "batch": 21,
+   "stem": "HYPERFLEX2GALKIT",
+   "mos": 16
+  },
+  "8300A-5": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "HYPERFLEXPARTA5GAL",
+   "mos": 5
+  },
+  "8300B-5": {
+   "type": "FILL",
+   "batch": 22,
+   "stem": "FLEXB5GAL",
+   "mos": 7
+  },
+  "8510A-1": {
+   "type": "FILL",
+   "batch": 120,
+   "stem": "HYPERPRIMEACLEAR1GAL",
+   "mos": 13
+  },
+  "8510A-1MG": {
+   "type": "FILL",
+   "batch": 60,
+   "stem": "HYPERPRIMEAGRAY1GAL",
+   "mos": 5
+  },
+  "8510A-2C-EW": {
+   "type": "FILL",
+   "batch": 25,
+   "stem": "HYPERPRIMECLEARPARTA2GAL",
+   "mos": 3
+  },
+  "8510A-2G-EW": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "MVBEPOXY/HYPERPRIMEGRAYA2GAL-EPOXYWORK",
+   "mos": 5
+  },
+  "8510-3C": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "HYPERPRIMECLEAR3GALKIT",
+   "mos": 13
+  },
+  "8510-3MG": {
+   "type": "KIT",
+   "batch": 32,
+   "stem": "HYPERPRIMEGRAY3GALKIT",
+   "mos": 3
+  },
+  "8510-3T": {
+   "type": "KIT",
+   "batch": 12,
+   "stem": "HYPERPRIMETAN3GALKIT",
+   "mos": 3
+  },
+  "8510A-5MG": {
+   "type": "FILL",
+   "batch": 9,
+   "stem": "HYPERPRIMEGRAYA5GAL",
+   "mos": 4
+  },
+  "8510A-5T": {
+   "type": "FILL",
+   "batch": 31,
+   "stem": "HYPERPRIMETAN5GAL",
+   "mos": 2
+  },
+  "8510A-5": {
+   "type": "FILL",
+   "batch": 30,
+   "stem": "HYPERPRIMEACLEAR5GAL",
+   "mos": 10
+  },
+  "8510B-5": {
+   "type": "FILL",
+   "batch": 33,
+   "stem": "HYPERPRIMEB5GAL",
+   "mos": 4
+  },
+  "8510A": {
+   "type": "BLEND",
+   "batch": 325,
+   "stem": "HYPERPRIMEACLEAR3",
+   "mos": 15
+  },
+  "8510B": {
+   "type": "BLEND",
+   "batch": 300,
+   "stem": "HYPERPRIMEB",
+   "mos": 7
+  },
+  "8200A-2C-CS": {
+   "type": "FILL",
+   "batch": 80,
+   "stem": "HYPERREZPARTA-COREREZA",
+   "mos": 1
+  },
+  "8200-3C": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "REZ3GALKIT",
+   "mos": 9
+  },
+  "8200A-5": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "HYPERREZ5GALA",
+   "mos": 8
+  },
+  "8200B-5": {
+   "type": "FILL",
+   "batch": 51,
+   "stem": "REZB5GAL",
+   "mos": 4
+  },
+  "8500-3C": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "MV21123GALKIT",
+   "mos": 9
+  },
+  "8500A-5": {
+   "type": "FILL",
+   "batch": 21,
+   "stem": "MV2112A5GAL",
+   "mos": 3
+  },
+  "8500B-5": {
+   "type": "FILL",
+   "batch": 10,
+   "stem": "MV2112B5GAL",
+   "mos": 3
+  },
+  "41001-DB": {
+   "type": "FILL",
+   "batch": 5,
+   "stem": "BONDDB2GALPIGMENTBUCKET",
+   "mos": 3
+  },
+  "41001-MG": {
+   "type": "FILL",
+   "batch": 7,
+   "stem": "EPOLYMG2GAL",
+   "mos": 6
+  },
+  "41001-SG": {
+   "type": "FILL",
+   "batch": 6,
+   "stem": "EPOLYPIGMENT2GALSG",
+   "mos": 6
+  },
+  "41001-T": {
+   "type": "FILL",
+   "batch": 7,
+   "stem": "EPOLY2GALTANBUCKET",
+   "mos": 1
+  },
+  "9400A-2": {
+   "type": "FILL",
+   "batch": 100,
+   "stem": "SGLOW2GAL-CORESOURCE/COREFLEX",
+   "mos": 24
+  },
+  "9400A-2C-CS": {
+   "type": "FILL",
+   "batch": 55,
+   "stem": "SGLOW2GAL",
+   "mos": 2
+  },
+  "9000B-2-EW": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "POLYASPARTICB'S-2GALKIT",
+   "mos": 1
+  },
+  "9400A-2C-EW": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "SGLOW2GAL",
+   "mos": 1
+  },
+  "9000B-2-I": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "POLYASPARTICB'S",
+   "mos": 5
+  },
+  "9400A-2C-I": {
+   "type": "FILL",
+   "batch": 200,
+   "stem": "SGLOW2GAL",
+   "mos": 2
+  },
+  "9200A-2": {
+   "type": "FILL",
+   "batch": 25,
+   "stem": "ASP85LOW2GAL-EPOXYWRK",
+   "mos": 3
+  },
+  "9200-3C": {
+   "type": "KIT",
+   "batch": 30,
+   "stem": "ASP85LOW3GALKIT",
+   "mos": 20
+  },
+  "9200-3MG": {
+   "type": "KIT",
+   "batch": 13,
+   "stem": "ASP85LOWMG3GALKIT",
+   "mos": 2
+  },
+  "9300-3C": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "SGREG3GALKIT-FGP1",
+   "mos": 17
+  },
+  "9400-3C": {
+   "type": "KIT",
+   "batch": 72,
+   "stem": "SGLOW3GALKIT",
+   "mos": 82
+  },
+  "9500-3C": {
+   "type": "KIT",
+   "batch": 12,
+   "stem": "ASP1003GALKIT",
+   "mos": 3
+  },
+  "9200A-5C": {
+   "type": "FILL",
+   "batch": 31,
+   "stem": "ASP85LOW5GALCLEAR",
+   "mos": 16
+  },
+  "9200A-5MG": {
+   "type": "FILL",
+   "batch": 10,
+   "stem": "ASP85LOWMG5GAL",
+   "mos": 1
+  },
+  "9200A-5SG": {
+   "type": "FILL",
+   "batch": 12,
+   "stem": "ASP85LOWSG5GAL",
+   "mos": 1
+  },
+  "9400A-5SG": {
+   "type": "FILL",
+   "batch": 4,
+   "stem": "ASP85LOWSG5GAL",
+   "mos": 1
+  },
+  "9400A-5C-GFC": {
+   "type": "FILL",
+   "batch": 19,
+   "stem": "SGLOW5GALA",
+   "mos": 2
+  },
+  "9000B-5-GFC": {
+   "type": "FILL",
+   "batch": 16,
+   "stem": "UNIVB5GALTHEGARAGEFLOORCOMP",
+   "mos": 1
+  },
+  "9500A-5": {
+   "type": "FILL",
+   "batch": 48,
+   "stem": "ASP1005GAL",
+   "mos": 2
+  },
+  "9200A-MG": {
+   "type": "BLEND",
+   "batch": 50,
+   "stem": "ASP85LOWMGPARTA",
+   "mos": 3
+  },
+  "9200A-SG": {
+   "type": "BLEND",
+   "batch": 60,
+   "stem": "ASP85LOWSGPARTA",
+   "mos": 3
+  },
+  "9400A-5": {
+   "type": "FILL",
+   "batch": 143,
+   "stem": "SGLOW5GAL",
+   "mos": 30
+  },
+  "9300A-5": {
+   "type": "FILL",
+   "batch": 66,
+   "stem": "SGREG5GAL",
+   "mos": 10
+  },
+  "9300A-1MG": {
+   "type": "FILL",
+   "batch": 40,
+   "stem": "SGREG1GALPARTA",
+   "mos": 1
+  },
+  "9300-3MG": {
+   "type": "KIT",
+   "batch": 18,
+   "stem": "SGMG1GALA",
+   "mos": 1
+  },
+  "9400-3C-EF": {
+   "type": "KIT",
+   "batch": 60,
+   "stem": "SGLOW3GALKIT-EASYFLO",
+   "mos": 5
+  },
+  "9700-2": {
+   "type": "KIT",
+   "batch": 102,
+   "stem": "POLYASPARTIC1TO1KIT",
+   "mos": 1
+  },
+  "9200A-5C-FCUSA": {
+   "type": "FILL",
+   "batch": 18,
+   "stem": "ASP85LOWCLEAR5GAL",
+   "mos": 2
+  },
+  "9200A-5SG-FCUSA": {
+   "type": "FILL",
+   "batch": 18,
+   "stem": "ASP85LOWSG5GAL",
+   "mos": 1
+  },
+  "9000B-5-FCUSA": {
+   "type": "FILL",
+   "batch": 16,
+   "stem": "UNIVB5GAL",
+   "mos": 1
+  },
+  "9400-3C-RAD": {
+   "type": "KIT",
+   "batch": 120,
+   "stem": "SGLOW3GALKIT",
+   "mos": 1
+  },
+  "9000B-5": {
+   "type": "FILL",
+   "batch": 68,
+   "stem": "UNIVB5GAL",
+   "mos": 45
+  },
+  "9021A": {
+   "type": "FILL",
+   "batch": 50,
+   "stem": "POLYUREACRACKREPAIRSLOW1GALPARTA",
+   "mos": 3
+  },
+  "9021B": {
+   "type": "FILL",
+   "batch": 51,
+   "stem": "POLYUREACRACKREPAIRSLOW1GALPARTB",
+   "mos": 3
+  },
+  "7503A-2T": {
+   "type": "FILL",
+   "batch": 71,
+   "stem": "POLYUREASLOWTAN2GAL",
+   "mos": 5
+  },
+  "7502A-2G-I": {
+   "type": "FILL",
+   "batch": 60,
+   "stem": "POLYUREAMEDSPEEDGRAY2GAL",
+   "mos": 3
+  },
+  "7502A-2T-I": {
+   "type": "FILL",
+   "batch": 88,
+   "stem": "POLYUREAMEDSPEEDTANPARTA",
+   "mos": 2
+  },
+  "7500B-2-I": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "POLYUREAB'S-2GALKIT",
+   "mos": 3
+  },
+  "7502A-2G": {
+   "type": "FILL",
+   "batch": 149,
+   "stem": "POLYUREAMEDSPEEDGRAY2GAL",
+   "mos": 1
+  },
+  "7503A-2G": {
+   "type": "FILL",
+   "batch": 88,
+   "stem": "POLYUREASLOWGRAY2GAL",
+   "mos": 10
+  },
+  "9021-2": {
+   "type": "KIT",
+   "batch": 40,
+   "stem": "POLYUREACRACKREPAIRSLOW2GAL",
+   "mos": 5
+  },
+  "7501-3C": {
+   "type": "KIT",
+   "batch": 2,
+   "stem": "POLYUREAFASTCLEAR3GALKIT",
+   "mos": 3
+  },
+  "7501-3G": {
+   "type": "KIT",
+   "batch": 30,
+   "stem": "POLYUREAFASTGRAY3GALKIT",
+   "mos": 5
+  },
+  "7501-3T": {
+   "type": "KIT",
+   "batch": 13,
+   "stem": "POLYUREAFASTTAN3GALKIT-FGP.",
+   "mos": 4
+  },
+  "7503-3C": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "POLYUREASLOWCLEAR3GALKIT-",
+   "mos": 2
+  },
+  "7503-3G": {
+   "type": "KIT",
+   "batch": 33,
+   "stem": "POLYUREASLOWGRAY3GALKIT",
+   "mos": 4
+  },
+  "7503-3T": {
+   "type": "KIT",
+   "batch": 25,
+   "stem": "POLYUREATANSLOW3GALKIT",
+   "mos": 5
+  },
+  "7502-3C": {
+   "type": "KIT",
+   "batch": 35,
+   "stem": "POLYUREAMEDSPEEDCLEAR3GAL",
+   "mos": 3
+  },
+  "7502-3G": {
+   "type": "KIT",
+   "batch": 16,
+   "stem": "POLYUREAMEDSPEEDGRAY3GALKIT",
+   "mos": 3
+  },
+  "7502-3T": {
+   "type": "KIT",
+   "batch": 50,
+   "stem": "POLYUREAMEDSPEEDTAN3GALKIT",
+   "mos": 1
+  },
+  "7502A-5G": {
+   "type": "FILL",
+   "batch": 22,
+   "stem": "POLYUREAMEDSPEEDGRAY5GAL",
+   "mos": 3
+  },
+  "7502A-5T": {
+   "type": "FILL",
+   "batch": 20,
+   "stem": "POLYUREAMEDSPEEDTAN5GAL",
+   "mos": 3
+  },
+  "7503A-5C": {
+   "type": "FILL",
+   "batch": 44,
+   "stem": "POLYUREASLOWCLEAR5GAL",
+   "mos": 2
+  },
+  "7503A-5G": {
+   "type": "FILL",
+   "batch": 34,
+   "stem": "POLYUREAGRAY5GAL",
+   "mos": 13
+  },
+  "7503A-5T": {
+   "type": "FILL",
+   "batch": 34,
+   "stem": "POLYUREASLOWTAN5GAL",
+   "mos": 8
+  },
+  "7500B-5": {
+   "type": "FILL",
+   "batch": 27,
+   "stem": "POLYUREAB5GAL",
+   "mos": 12
+  },
+  "9020-2": {
+   "type": "KIT",
+   "batch": 42,
+   "stem": "POLYUREAFASTCRACK2GALKIT",
+   "mos": 3
+  },
+  "R90501-SG": {
+   "type": "FILL",
+   "batch": 6,
+   "stem": "DT454SG5GAL",
+   "mos": 1
+  }
+ },
+ "auto": [
+  "7501-3C-I",
+  "7501A-1G",
+  "7501A-1T",
+  "7502-15C",
+  "7502-15G",
+  "7502-15T",
+  "7502-3C-I",
+  "7502-3G-I",
+  "7502-3T-I",
+  "7503-15C",
+  "7503-15G",
+  "7503-3C-I",
+  "7503-3G-I",
+  "7503-3T-I",
+  "8000-15C",
+  "8000-15DB",
+  "8000-15MG",
+  "8000-15SG",
+  "8000-15SG-GFC",
+  "8000-15T",
+  "8000-15T-GFC",
+  "8000-3C-CS",
+  "8000-3MG-CS",
+  "8000-3SG-CS",
+  "8100-15C",
+  "8100-15MG",
+  "8100-15MG-GFC",
+  "8100-15SG",
+  "8100-15SG-GFC",
+  "8100-15T",
+  "8110-15C",
+  "8110-15SG",
+  "8200-15C",
+  "8200-3C-CS",
+  "8210-15C",
+  "8210-3C-CS",
+  "8300-10C",
+  "8510-15",
+  "8510-3C-EW",
+  "8510-3C-I",
+  "9200-15C",
+  "9200-15C-FCUSA",
+  "9200-3C-I",
+  "9300-15C",
+  "9400-15C",
+  "9400-15C-GFC",
+  "9400-3C-CS",
+  "9400-3C-EW",
+  "9400-3C-I",
+  "9500-15C"
+ ],
+ "capacity": {
+  "blendStd": 2,
+  "blendBig": 1,
+  "bigThreshold": 1000,
+  "fillGal": 1845,
+  "kits": 275
+ }
+}
