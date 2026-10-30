@@ -102,8 +102,19 @@ export function SettingsPage(props: { api: Api }) {
               </label>
             </div>
             <label class="toggle"><input type="checkbox" checked={s.useReorderFloor} onChange={(e) => set("useReorderFloor", (e.target as HTMLInputElement).checked)} /> Use the inFlow reorder point as a minimum (items with demand)</label>
-            <label class="toggle"><input type="checkbox" checked={s.countOnOrder} onChange={(e) => set("countOnOrder", (e.target as HTMLInputElement).checked)} /> What-if: count raw materials on open POs as on hand</label>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Raw materials on order</h2><span class="card-sub">From the Purchase order status report. Each open line counts from the day its material can be used.</span></div>
+        <div class="card-body stack">
+          <div class="row" style={{ alignItems: "flex-end", gap: 16 }}>
+            <NumField label="Usable after the requested ship date" value={s.receiptLagDays} onChange={(v) => set("receiptLagDays", Math.round(v))} suffix="workdays" hint="0 = usable on the ship date" />
+          </div>
+          <label class="toggle"><input type="checkbox" checked={s.countPastDue} onChange={(e) => set("countPastDue", (e.target as HTMLInputElement).checked)} /> Count past-due PO lines as arriving on the first day (off = ignore them until they're received)</label>
+          <label class="toggle"><input type="checkbox" checked={s.countOnOrder} onChange={(e) => set("countOnOrder", (e.target as HTMLInputElement).checked)} /> What-if: count every open PO as on hand from day one, ignoring ship dates</label>
+          <div class="small muted">Lines without a requested ship date aren't counted; they show on the Shortages page so you can get a date from the vendor.</div>
         </div>
       </div>
 

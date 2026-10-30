@@ -17,7 +17,7 @@ import type { Edits, Lane, Pin, Settings } from "../data/settings";
 import { LANE_LABEL } from "../data/settings";
 import type { Baselines } from "./baselines";
 import { bomGallons, gallonsFromName, learnBaselines } from "./baselines";
-import { addDays, countWorkdays, holidayMap, moStamp, nextWorkday, today, workdays } from "./dates";
+import { addDays, countWorkdays, holidayMap, moStamp, nextWorkday, shortDate, today, workdays } from "./dates";
 
 export interface Item {
   sku: string;
@@ -126,6 +126,8 @@ export interface Batch {
   feeds: Set<string>;
   pin?: Pin;
   warnings?: string[];
+  /** POs this batch's raw materials come from. */
+  poNotes?: string[];
 }
 
 export interface Mo {
@@ -176,6 +178,29 @@ export interface MaterialShort {
   short: number;
   onOrder: number;
   items: string[];
+  /** Open PO lines for this material, earliest first. */
+  incoming: Receipt[];
+}
+
+/** One open PO line, placed on the first schedule day its material can be used. */
+export interface Receipt {
+  po: string;
+  vendor: string;
+  sku: string;
+  name: string;
+  /** Requested ship date (blank = none). */
+  due: string;
+  /** First workday the material can be used (ship date + lag). */
+  usable: string;
+  qty: number;
+  /** Index into days; days.length = after this schedule; null = not counted (no ship date, or past due and ignored). */
+  day: number | null;
+  pastDue: boolean;
+  /** How much of it the scheduled MOs use. */
+  used: number;
+  /** Taken first by reservations when available stock is negative. */
+  toBackorders: number;
+  left: number;
 }
 
 export interface Flag {
@@ -230,6 +255,9 @@ export interface Schedule {
   materials: MaterialShort[];
   flags: Flag[];
   plans: ItemPlan[];
+  /** Open PO lines for raw materials in the BOMs. */
+  receipts: Receipt[];
+  usesPoFile: boolean;
   warnings: string[];
   model: Model;
 }
@@ -255,6 +283,44 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
   const start = s.startDate && s.startDate > now ? workdays(s.startDate, 1, hol)[0] : nextWorkday(now, hol);
   const days = workdays(start, s.horizonDays, hol);
   const closures = [...hol].filter(([d]) => d >= start && d <= days[days.length - 1]).map(([date, name]) => ({ date, name }));
+  const H = days.length;
+
+  // Raw materials arriving on open POs: usable `receiptLagDays` workdays after the requested
+  // ship date. Past-due lines arrive on the first day (or are ignored); lines without a
+  // ship date aren't counted. Without a PO file, the what-if counts Qty On Order as on hand.
+  const usesPoFile = ds.files.some((f) => f.kind === "po");
+  const receipts: Receipt[] = [];
+  const bomRaw = new Set(ds.bom.map((l) => l.comp).filter((c) => !items.has(c)));
+  const dayOf = (date: string) => { const i = days.findIndex((d) => d >= date); return i < 0 ? H : i; };
+  for (const p of ds.pos ?? []) {
+    if (!bomRaw.has(p.sku)) continue;
+    let usable = p.due;
+    for (let k = 0; k < s.receiptLagDays && usable; k++) usable = nextWorkday(usable, hol);
+    const pastDue = !!p.due && p.due < now;
+    let day: number | null = s.countOnOrder ? 0 : !p.due ? null : pastDue && !s.countPastDue ? null : dayOf(usable);
+    receipts.push({ po: p.po, vendor: p.vendor, sku: p.sku, name: p.name, due: p.due, usable, qty: p.remaining, day, pastDue, used: 0, toBackorders: 0, left: p.remaining });
+  }
+  if (!usesPoFile && s.countOnOrder) {
+    for (const r of ds.inventory) if (r.onOrder > 0 && bomRaw.has(r.sku)) {
+      receipts.push({ po: "On order", vendor: "", sku: r.sku, name: r.name, due: "", usable: days[0], qty: r.onOrder, day: 0, pastDue: false, used: 0, toBackorders: 0, left: r.onOrder });
+    }
+  }
+  receipts.sort((a, b) => (a.day ?? 1e9) - (b.day ?? 1e9) || a.due.localeCompare(b.due));
+  const receiptsBy = new Map<string, Receipt[]>();
+  for (const r of receipts) { if (!receiptsBy.has(r.sku)) receiptsBy.set(r.sku, []); receiptsBy.get(r.sku)!.push(r); }
+  // Negative available stock (more reserved than on hand) takes the earliest arrivals first
+  for (const [sku, list] of receiptsBy) {
+    let deficit = Math.max(0, -(stock.get(sku)?.available ?? 0));
+    for (const r of list) {
+      if (r.day == null || deficit <= 0) continue;
+      const t = Math.min(deficit, r.left);
+      r.toBackorders += t; r.left -= t; deficit -= t;
+    }
+  }
+  /** Raw material usable by day d, before anything is scheduled. */
+  const rawSupplyBy = (sku: string, d: number) =>
+    Math.max(0, avail(sku)) + (receiptsBy.get(sku) ?? []).reduce((x, r) => x + (r.day != null && r.day <= d ? r.left : 0), 0)
+    - (avail(sku) < 0 ? Math.max(0, -avail(sku) - (receiptsBy.get(sku) ?? []).reduce((x, r) => x + r.toBackorders, 0)) : 0);
 
   // Demand: average daily sales over the last N weeks of the sales file
   let salesTo = "";
@@ -316,7 +382,8 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
   const plans = new Map<string, ItemPlan>();
   const flags: Flag[] = [];
   const rawLeft = new Map<string, number>();
-  const rawLeftOf = (sku: string) => rawLeft.get(sku) ?? avail(sku) + (s.countOnOrder ? stock.get(sku)?.onOrder ?? 0 : 0);
+  // What each raw material can still give within this schedule (on hand + arrivals in time)
+  const rawLeftOf = (sku: string) => rawLeft.get(sku) ?? rawSupplyBy(sku, H - 1);
   const isMade = (sku: string) => items.has(sku) && !items.get(sku)!.auto;
   const blockedBatches: { b: Batch; missing: { sku: string; need: number; have: number }[] }[] = [];
   let seq = 0;
@@ -427,13 +494,34 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
   }
 
   // ---------- Place batches on days ----------
-  const H = days.length;
   const loads: DayLoad[] = days.map((date) => ({ date, blendStd: 0, blendBig: 0, fillGal: 0, kits: 0 }));
   const produced = new Map<string, number[]>();
   const consumed = new Map<string, number>();
   const placed: { b: Batch; day: number; warnings: string[] }[] = [];
   const waiting: { b: Batch; late: { sku: string; need: number; have: number }[] }[] = [];
+  const rawLate: { b: Batch; late: string[] }[] = [];
   const noRoom: Batch[] = [];
+  const rawUsed = new Map<string, number>();
+  const rawReadyBy = (sku: string, d: number) => rawSupplyBy(sku, d) - (rawUsed.get(sku) ?? 0);
+  /** Take raw material for a batch: stock on hand first, then PO arrivals in date order. Returns the POs it relied on. */
+  const stockUsed = new Map<string, number>();
+  const takeRaw = (sku: string, need: number, d: number): Receipt[] => {
+    rawUsed.set(sku, (rawUsed.get(sku) ?? 0) + need);
+    const su = stockUsed.get(sku) ?? 0;
+    const fromStock = Math.min(need, Math.max(0, rawSupplyBy(sku, -1) - su));
+    stockUsed.set(sku, su + fromStock);
+    let rest = need - fromStock;
+    const used: Receipt[] = [];
+    for (const r of receiptsBy.get(sku) ?? []) {
+      if (rest <= 1e-9) break;
+      if (r.day == null || r.day > d || r.left - r.used <= 1e-9) continue;
+      const t = Math.min(rest, r.left - r.used);
+      r.used += t;
+      rest -= t;
+      used.push(r);
+    }
+    return used;
+  };
   const blockedSkus = new Set(blockedBatches.map((x) => x.b.sku));
   const cap = s.capacity;
 
@@ -462,6 +550,8 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
     for (const b of list) {
       const it = items.get(b.sku)!;
       const made = it.comps.filter((c) => isMade(c.sku));
+      const raw = it.comps.filter((c) => !isMade(c.sku));
+      const rawOk = (d: number) => raw.every((c) => rawReadyBy(c.sku, d) >= b.qty * c.qty - 1e-6);
       const pinDay = b.pin?.date ? days.indexOf(b.pin.date) : -1;
       let day = -1;
       const warn = [...(b.warnings ?? [])];
@@ -469,18 +559,26 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
         day = pinDay;
         if (!fits(it, b.qty, day)) warn.push(`Over ${LANE_LABEL[it.type].toLowerCase()} capacity on this day.`);
         for (const c of made) if (readyBy(c.sku, day) < b.qty * c.qty - 1e-6) warn.push(`Not enough ${c.sku} ready by this day.`);
+        if (!(b.warnings ?? []).length) for (const c of raw) if (rawReadyBy(c.sku, day) < b.qty * c.qty - 1e-6) warn.push(`Not enough ${c.sku} on hand by this day; it arrives later on a PO.`);
       } else {
         for (let d = 0; d < H && day < 0; d++) {
-          if (fits(it, b.qty, d) && made.every((c) => readyBy(c.sku, d) >= b.qty * c.qty - 1e-6)) day = d;
+          if (fits(it, b.qty, d) && rawOk(d) && made.every((c) => readyBy(c.sku, d) >= b.qty * c.qty - 1e-6)) day = d;
         }
       }
       if (day < 0) {
         const late = made.map((c) => ({ sku: c.sku, need: b.qty * c.qty, have: readyBy(c.sku, H - 1) })).filter((c) => c.have < c.need - 1e-6);
+        const lateRaw = raw.filter((c) => rawReadyBy(c.sku, H - 1) < b.qty * c.qty - 1e-6).map((c) => c.sku);
         if (late.length) waiting.push({ b, late });
+        else if (lateRaw.length) rawLate.push({ b, late: lateRaw });
         else noRoom.push(b);
         continue;
       }
       for (const c of made) consumed.set(c.sku, (consumed.get(c.sku) ?? 0) + b.qty * c.qty);
+      for (const c of raw) for (const r of takeRaw(c.sku, b.qty * c.qty, day)) {
+        const note = `Uses ${c.sku} from PO ${r.po} (${r.pastDue ? "past due, " : ""}${r.due ? `ships ${shortDate(r.due)}, ` : ""}usable ${shortDate(r.usable)}).`;
+        if (!b.poNotes) b.poNotes = [];
+        if (!b.poNotes.includes(note)) b.poNotes.push(note);
+      }
       if (!produced.has(b.sku)) produced.set(b.sku, Array(H).fill(0));
       produced.get(b.sku)![day] += b.qty;
       load(it, b.qty, day);
@@ -501,6 +599,7 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
     if (tr > 0) out.push(`${round(Math.max(0, a) / tr)} days of supply left at ${round(tr, 1)}/day.`);
     const va = viaAuto.get(it.sku) ?? 0;
     if (va > 0) out.push(`${round(va, 1)}/day of its demand comes from auto-built kits (15-gal or private label).`);
+    for (const n of b.poNotes ?? []) out.push(n);
     for (const f of b.feeds) out.push(`Feeds ${items.get(f)?.type === "KIT" ? "kit" : items.get(f)?.type === "FILL" ? "fill" : "blend"} ${f} ${items.get(f)?.name ?? ""}.`);
     return out;
   };
@@ -586,13 +685,22 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
       addUnplaced(b, `Waiting on ${late.map((c) => c.sku).join(", ")}: not enough can be made in time within ${H} days.`);
     }
   }
+  for (const { b, late } of rawLate) {
+    const when = late.map((sku) => {
+      const next = (receiptsBy.get(sku) ?? []).find((r) => r.day != null && r.day < H && r.left - r.used > 0);
+      return next ? `${sku} (PO ${next.po} usable ${shortDate(next.usable)})` : sku;
+    });
+    addUnplaced(b, `Waiting on ${when.join(", ")}: arrives too late to make it with the room left in ${H} days.`);
+  }
   for (const b of noRoom) addUnplaced(b, `No ${LANE_LABEL[items.get(b.sku)!.type].toLowerCase()} capacity left within ${H} days.`);
   const unplaced = [...unplacedBy.values()].sort((a, b) => a.key - b.key);
   const materials: MaterialShort[] = [...matNeed].map(([sku, m]) => {
     const left = Math.max(0, rawLeftOf(sku));
     return {
       sku, name: model.names.get(sku) ?? sku, needed: round(m.need, 2), available: round(avail(sku), 2),
-      short: round(Math.max(0, m.need - left), 2), onOrder: stock.get(sku)?.onOrder ?? 0, items: [...m.items],
+      short: round(Math.max(0, m.need - left), 2), items: [...m.items],
+      onOrder: usesPoFile ? (receiptsBy.get(sku) ?? []).reduce((x, r) => x + r.qty, 0) : stock.get(sku)?.onOrder ?? 0,
+      incoming: receiptsBy.get(sku) ?? [],
     };
   }).filter((m) => m.short > 0).sort((a, b) => b.short - a.short);
   const shortages = [...shortBy.values()].sort((a, b) => a.key - b.key);
@@ -604,7 +712,7 @@ export function buildSchedule(ds: Dataset, base: Baselines, s: Settings, edits: 
   return {
     days, closures, salesFrom, salesTo, salesWorkdays, mos, loads, unplaced,
     shortages, materials, flags, plans: [...plans.values()].filter((p) => p.planned > 0 || p.salesPerDay > 0 || p.viaAutoPerDay > 0),
-    warnings, model,
+    receipts, usesPoFile, warnings, model,
   };
 }
 

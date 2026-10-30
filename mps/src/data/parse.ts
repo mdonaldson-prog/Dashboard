@@ -52,6 +52,7 @@ const SIGNATURES: [FileKind, string[]][] = [
   ["reorder", ["SKU", "Reorder Method", "Reorder Point", "Suggested Quantity"]],
   ["sales", ["SKU", "Quantity Sold", "Order Number"]],
   ["bom", ["FinishedProductSKU", "ComponentProductSKU"]],
+  ["po", ["PO Number", "Remaining Qty", "SKU"]],
   ["moHistory", ["Manufacture Order #", "Completed Date"]],
 ];
 
@@ -125,6 +126,19 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
       if (inactive) info.warnings.push(`${inactive} inactive BOM lines ignored.`);
       break;
     }
+    case "po":
+      data.pos = [];
+      for (const r of rows) {
+        const sku = s(r, "SKU");
+        const remaining = num(r["Remaining Qty"]);
+        if (!sku || remaining <= 0) continue;
+        data.pos.push({
+          po: s(r, "PO Number"), vendor: s(r, "VendorName"), location: s(r, "Location"), sku, name: s(r, "ProductName"),
+          due: parseDate(r["Requested Ship Date"]), remaining,
+        });
+      }
+      if (data.pos.some((p) => !p.due)) info.warnings.push(`${data.pos.filter((p) => !p.due).length} open lines have no requested ship date and aren't counted.`);
+      break;
     case "moHistory":
       data.moHistory = [];
       for (const r of rows) {
@@ -135,7 +149,7 @@ export function parseFile(name: string, bytes: Uint8Array): { info: FileInfo; da
       }
       break;
     default:
-      info.warnings.push("Not recognized. Expected an inventory summary, stock reordering report, sales by product details, BOM, or completed MO history.");
+      info.warnings.push("Not recognized. Expected an inventory summary, stock reordering report, sales by product details, BOM, purchase order status, or completed MO history.");
   }
   if (blankSku) info.warnings.push(`${blankSku} rows without a SKU skipped.`);
   return { info, data };

@@ -27,3 +27,5 @@ console.log(`\nMATERIALS SHORT`);
 for (const m of s.materials) console.log(`  ${m.sku.padEnd(14)} ${m.name.slice(0, 40).padEnd(40)} need ${r(m.needed)} avail ${r(m.available)} short ${r(m.short)} ${m.onOrder > 0 ? `PO on order ${r(m.onOrder)}` : "No PO"}`);
 console.log(`\nFLAGGED (${s.flags.length})`);
 for (const f of s.flags) console.log(`  ${f.kind} ${f.sku} ${f.product}: ${f.message} suggest ${f.suggestQty}`);
+console.log(`\nPOs THE SCHEDULE COUNTS ON`);
+for (const r of s.receipts.filter((r) => r.used > 0)) console.log(`  ${r.po.padEnd(10)} ${r.sku.padEnd(14)} ships ${r.due || "—"} usable ${r.usable || "—"}${r.pastDue ? " PAST DUE" : ""} qty ${r.qty} used ${Math.round(r.used)}`);

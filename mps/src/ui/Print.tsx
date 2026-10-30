@@ -4,7 +4,7 @@ import type { Dataset } from "../data/model";
 import type { Lane } from "../data/settings";
 import { LANE_LABEL, LANES } from "../data/settings";
 import { fmt, fmt0 } from "./format";
-import { BlockedTable, MaterialsTable, UnplacedTable } from "./Shortages";
+import { BlockedTable, MaterialsTable, ReceiptsTable, UnplacedTable } from "./Shortages";
 
 export type PrintKind = { kind: "master" } | { kind: "team"; lane: Lane };
 
@@ -82,6 +82,7 @@ function Master(props: { sched: Schedule; ds: Dataset }) {
         {sched.materials.length ? <MaterialsTable sched={sched} /> : <p>None.</p>}
         <h2>Needs scheduling, but materials are missing</h2>
         {sched.shortages.length ? <BlockedTable sched={sched} /> : <p>None.</p>}
+        {sched.receipts.some((r) => r.used > 0) && (<><h2>POs this schedule counts on</h2><ReceiptsTable sched={sched} onlyUsed /></>)}
         {!!sched.unplaced.length && (<><h2>Didn't fit in these two weeks</h2><UnplacedTable sched={sched} /></>)}
         {!!review.length && (
           <>

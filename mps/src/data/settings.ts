@@ -27,6 +27,10 @@ export interface Settings {
   useReorderFloor: boolean;
   /** What-if: treat raw materials on open POs as already on hand. */
   countOnOrder: boolean;
+  /** PO material is usable this many workdays after its requested ship date. */
+  receiptLagDays: number;
+  /** Count past-due PO lines as arriving on the first day (else ignore them). */
+  countPastDue: boolean;
   capacity: Capacity;
   holidayRules: Record<string, boolean>;
   extraClosures: { date: string; name: string }[];
@@ -59,6 +63,8 @@ export const DEFAULT_SETTINGS: Settings = {
   startDate: "",
   useReorderFloor: true,
   countOnOrder: false,
+  receiptLagDays: 1,
+  countPastDue: true,
   capacity: { blendStd: 3, blendBig: 1, bigThreshold: 1000, fillGal: 1835, kits: 275 },
   holidayRules: {},
   extraClosures: [],

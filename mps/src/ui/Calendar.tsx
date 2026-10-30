@@ -51,6 +51,7 @@ function MoCard(props: { mo: Mo; onOpen: () => void; onDrag: (mo: Mo | null) => 
         {mo.pinned && <span class="mo-flag" title="Locked to this day"><IconLock /></span>}
         {mo.manual && <span class="mo-flag" title="Added manually"><IconPlus /></span>}
         {!!mo.warnings.length && <span class="mo-flag warn" title={mo.warnings.join("\n")}><IconAlert /></span>}
+        {mo.why.some((w) => w.startsWith("Uses ")) && <span class="mo-po" title={mo.why.filter((w) => w.startsWith("Uses ")).join("\n")}>PO</span>}
       </span>
       <span class="mo-name">{mo.product}</span>
       <span class="mo-qty">{qtyText(mo)}</span>

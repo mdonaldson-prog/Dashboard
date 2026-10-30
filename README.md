@@ -30,8 +30,8 @@ npm run verify -- /path/to/exports         # print last week's KPIs and the coun
 
 A separate single file, [`release/ProductionSchedule.html`](release/ProductionSchedule.html), that suggests a two-week Blend, Fill and Kit schedule from demand, stock and capacity.
 
-- **Drop in each run:** Inventory summary, Stock reordering report, Sales by product details (last 8+ weeks). **Monthly:** inFlow BOM. **Optional:** completed MO history, to re-learn batch sizes and capacity.
-- **How it plans:** average daily sales over the last 8 weeks (auto-built 15-gal and private-label kits passed down to their buckets and fills), 10 workdays of cover + 5 safety, reorder point as a minimum, netted against available stock, rounded up to each SKU's typical batch. Kits drive fills, fills drive blends. Raw materials go to the most urgent items first; anything short goes to the Shortages page.
+- **Drop in each run:** Inventory summary, Stock reordering report, Sales by product details (last 8+ weeks), Purchase order status. **Monthly:** inFlow BOM. **Optional:** completed MO history, to re-learn batch sizes and capacity.
+- **How it plans:** average daily sales over the last 8 weeks (auto-built 15-gal and private-label kits passed down to their buckets and fills), 10 workdays of cover + 5 safety, reorder point as a minimum, netted against available stock, rounded up to each SKU's typical batch. Kits drive fills, fills drive blends. Raw materials go to the most urgent items first. Material on open POs counts from 1 workday after its requested ship date (editable; past-due lines count from day one, lines without a date don't count), and MOs that need it are placed on or after that day. Anything still short goes to the Shortages page, with the POs the schedule depends on.
 - **Capacity (editable):** 3 standard + 1 big-tank (≥1,000 gal) blend per day, 1,835 gal filled, 275 kits. Mon–Fri, US holidays plus your own closures.
 - **Outputs:** calendar with drag-to-move and lock, needs-review list with "Add to schedule", shortages, plan details, master overview and team sheet printouts, CSV of suggested MOs named `TYPE-YYDDMM-NAME-LABEL`.
 
